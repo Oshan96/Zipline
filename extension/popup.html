@@ -1,0 +1,98 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  /* the app's theme (Options → General) when it's known, else the browser's */
+  :root{color-scheme:light;--bg:#fff;--panel2:#f8f9fb;--line:#dde2ea;--line2:#e9edf2;--text:#1c2330;--muted:#6a7486;--accent:#1a6cf0;--hover:#eef3fb;--ok:#1f9d55;--err:#d93a3a;--errtext:#c62d2d}
+  @media (prefers-color-scheme: dark){:root:not([data-theme=light]){color-scheme:dark;--bg:#1d2128;--panel2:#22272f;--line:#2f3540;--line2:#2a2f38;--text:#e5e9f0;--muted:#8d97a8;--accent:#4b8dff;--hover:#252b35;--errtext:#f26b6b}}
+  :root[data-theme=dark]{color-scheme:dark;--bg:#1d2128;--panel2:#22272f;--line:#2f3540;--line2:#2a2f38;--text:#e5e9f0;--muted:#8d97a8;--accent:#4b8dff;--hover:#252b35;--errtext:#f26b6b}
+  *{box-sizing:border-box}
+  body{width:340px;margin:0;font:13px/1.4 "Segoe UI",system-ui,-apple-system,sans-serif;color:var(--text);background:var(--bg)}
+  header{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line2)}
+  header img{width:22px;height:22px}
+  header b{font-weight:600}
+  .st{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+  .dot{width:8px;height:8px;border-radius:50%;background:#aab3c2}
+  .dot.ok{background:var(--ok)}.dot.bad{background:var(--err)}
+  section{padding:12px 16px;border-bottom:1px solid var(--line2)}
+  section:last-of-type{border-bottom:0}
+  h2{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 8px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+  .list{display:grid;grid-template-columns:minmax(0,1fr);gap:4px;max-height:240px;overflow:auto}
+  .row{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--line2);border-radius:7px;background:var(--panel2)}
+  .row .t{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+  .row .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .row .m{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .row .m.bad{color:var(--errtext)}
+  .tag{flex:none;min-width:40px;text-align:center;font-size:10.5px;padding:1px 6px;border-radius:4px;border:1px solid var(--line);color:var(--muted)}
+  .empty{color:var(--muted);font-size:12px;padding:4px 0}
+  .inline{display:flex;gap:8px;align-items:center}
+  input[type=text],input[type=number]{flex:1;min-width:0;padding:6px 9px;border:1px solid var(--line);border-radius:7px;background:var(--panel2);color:var(--text);font:inherit;outline:none}
+  input:focus{border-color:var(--accent)}
+  input[type=number]{flex:none;width:76px}
+  button{padding:6px 12px;border:0;border-radius:7px;background:var(--accent);color:#fff;font:inherit;cursor:pointer;flex:none}
+  button:hover{filter:brightness(1.08)}
+  button.sm{padding:4px 10px;font-size:12px}
+  button.done{background:var(--ok)}
+  button.bad{background:var(--err)}
+  label.chk{display:flex;gap:8px;align-items:flex-start;margin:8px 0 0;cursor:pointer}
+  label.chk input{margin-top:2px}
+  .hint{color:var(--muted);font-size:12px;margin:2px 0 0 24px}
+  a{color:var(--accent);cursor:pointer;text-decoration:none;font-size:12px}
+  a:hover{text-decoration:underline}
+  .msg{font-size:12px;margin-top:6px;min-height:16px}
+  .msg:empty{display:none}
+  button.wide{width:100%;padding:8px 12px}
+  button.alt{margin-top:8px;background:var(--panel2);color:var(--text);border:1px solid var(--line)}
+  .banner{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);font-size:12px}
+  .banner span{flex:1}
+  .banner.warn{border-left:3px solid var(--err)}
+  .row2{display:flex;gap:8px}
+  .row2 button{flex:1;min-width:0;margin-top:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  button:disabled{opacity:.55;cursor:default;filter:none}
+  .keys{color:var(--muted);font-size:12px;margin-top:10px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 8px;align-items:baseline}
+  .keys:empty{display:none}
+  .keys .unset{font-style:italic;white-space:nowrap}
+  kbd{font:11px/1.6 inherit;padding:0 5px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;background:var(--panel2);color:var(--text);white-space:nowrap}
+</style>
+</head>
+<body>
+<header><img src="icons/icon48.png" alt=""><b>Zipline</b><span class="st"><span class="dot" id="dot"></span><span id="st">Checking…</span></span></header>
+<section id="link" hidden>
+  <div class="banner" id="linkbox"><span id="linkmsg"></span><button id="linkbtn" hidden></button></div>
+</section>
+<section id="perm" hidden>
+  <div class="banner"><span>Firefox needs your OK before Zipline can read pages and send sign-in cookies.</span><button id="grant">Allow</button></div>
+</section>
+<section>
+  <button class="wide" id="all">Download all links on this page…</button>
+  <div class="msg" id="allmsg"></div>
+  <button class="wide alt" id="scan">Scan this site…</button>
+  <div class="msg" id="scanmsg"></div>
+</section>
+<section>
+  <h2><span>Videos on this page</span><span id="vcount"></span></h2>
+  <div class="list" id="videos"></div>
+</section>
+<section>
+  <h2><span>Add a link</span></h2>
+  <div class="inline"><input type="text" id="url" placeholder="Paste a link to download" spellcheck="false"><button id="go">Add</button></div>
+  <div class="msg" id="msg"></div>
+</section>
+<section>
+  <h2><span>Settings</span></h2>
+  <label class="chk"><input type="checkbox" id="vbtn"><span>Show a Download button on videos</span></label>
+  <div class="hint" id="siteoff" hidden>Hidden on this site. <a id="siteon">Show it here again</a></div>
+  <label class="chk"><input type="checkbox" id="takeover"><span>Also take over browser downloads</span></label>
+  <div class="hint" id="tkhint">Off by default.</div>
+  <div class="msg hint" id="setmsg"></div>
+  <div class="keys" id="keys"></div>
+</section>
+<section class="row2">
+  <button class="alt" id="open">Open Zipline</button>
+  <button class="alt" id="opts">Browser options…</button>
+</section>
+<script src="linkpopup.js"></script>
+<script src="popup.js"></script>
+</body>
+</html>

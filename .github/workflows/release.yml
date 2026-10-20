@@ -1,0 +1,92 @@
+# Every merge to main (any push to main) is tested, built for every platform and published as a
+# GitHub release: the portable packages for Windows, macOS and Linux, the Windows installer and the
+# source. Pull requests into main get the same checks, without a release.
+#
+# Versions: phone.go's appVersion holds the major and minor parts (1.0). Each release adds the next
+# patch number for them: v1.0.0, v1.0.1, … Raise appVersion (to 1.1, 2.0) and the next release is
+# v1.1.0. The full version goes into the app and the extensions (tools/package.sh).
+name: Build and release
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: # (Actions → Build and release → Run workflow: release main again)
+
+permissions:
+  contents: read
+
+concurrency: # one release at a time, so two merges can't take the same version
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false # (no dependencies: the standard library only)
+      - name: Vet for Windows, macOS and Linux
+        run: |
+          GOOS=windows go vet .
+          GOOS=darwin go vet .
+          go vet .
+          go vet -tags zlfake .
+      - name: Check the colours' contrast
+        run: python3 tools/contrast.py
+      - name: Test
+        run: go test -timeout 35m .
+
+  release:
+    needs: test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write # (to tag the commit and publish the release)
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # (the tags, to find the next version)
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Install the packaging tools
+        run: sudo apt-get update -q && sudo apt-get install -y -q python3-pil zip nsis
+      - name: Pick the version
+        id: version
+        run: |
+          base=$(grep -oE 'appVersion = "[0-9]+\.[0-9]+"' phone.go | grep -oE '[0-9]+\.[0-9]+' || true)
+          if [ -z "$base" ]; then
+            echo "::error file=phone.go::appVersion should hold the major and minor version only, like \"1.0\""
+            exit 1
+          fi
+          if done=$(git tag --points-at HEAD -l "v$base.*" | head -1) && [ -n "$done" ]; then
+            echo "::notice::This commit is already released as $done"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          last=$(git tag -l "v$base.*" | sed -n "s/^v${base//./\\.}\.\([0-9][0-9]*\)$/\1/p" | sort -n | tail -1)
+          version="$base.$(( ${last:--1} + 1 ))"
+          echo "Releasing $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Build the packages
+        if: steps.version.outputs.skip != 'true'
+        run: bash tools/package.sh "${{ steps.version.outputs.version }}"
+      - name: Publish the release
+        if: steps.version.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          test -f pkg/Zipline-Windows-Setup.exe || { echo "::error::the Windows installer wasn't built"; exit 1; }
+          gh release create "v$VERSION" pkg/*.zip pkg/*.tar.gz pkg/Zipline-Windows-Setup.exe \
+            --target "$GITHUB_SHA" \
+            --title "Zipline $VERSION" \
+            --generate-notes

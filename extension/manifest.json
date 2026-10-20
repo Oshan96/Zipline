@@ -1,0 +1,78 @@
+{
+  "manifest_version": 3,
+  "name": "Zipline Download Catcher",
+  "version": "1.0.0",
+  "description": "Send links, videos and downloads to the Zipline Download Manager app for fast multi-connection downloading.",
+  "minimum_chrome_version": "116",
+  "permissions": [
+    "alarms",
+    "contextMenus",
+    "downloads",
+    "cookies",
+    "storage",
+    "nativeMessaging",
+    "webRequest",
+    "declarativeNetRequestWithHostAccess",
+    "scripting",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "video.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "links.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "commands": {
+    "zl-download": {
+      "suggested_key": {
+        "default": "Alt+Shift+Z"
+      },
+      "description": "Download the link under the pointer (or this page's video) with Zipline"
+    },
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Alt+Shift+X"
+      },
+      "description": "Open Zipline's menu"
+    }
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Zipline",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzSBptvLToADVCPHjxHglFZ2hmXjjBeT34te/XOrde8k/Z8Fd60CYpxwoxjbTPqhMs5oqlX6vnZPoldq8OtHOao7H7a3tTE1aWtMuuKf1p1nHvL9eD4mqA+tCYLhoFw1J5iAWqjr2d1DrC2HeSKRgy0Szu7n0WL9x0yL5dP96mcLh4UCM1xfSbXu3ey01arUxaYuw8f3NN9m3RsQv0RhGxTiP54S+JlQRvcRjki+3WPlQUPn/XlYVMo67SW0LgDegMwyQ2JfIuj9DnT8sufoxl+TiKrrN7JBABOd1WJgepEU4Ci6yauD40n62A3ul6TDE5XnJMh15jbI4ZYpJZ5JmqwIDAQAB"
+}

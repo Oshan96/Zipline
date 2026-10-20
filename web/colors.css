@@ -1,0 +1,84 @@
+/* Zipline's colour, focus and motion tokens: ONE file for the window (index.html) and the phone
+   page (m.html). The app pastes it into each page's <style> where the page has its colours marker
+   (see colors.go), so the phone page's strict Content-Security-Policy needs no external stylesheet.
+   Edit colours here only. `python3 tools/contrast.py` checks every pair below against WCAG 2.2:
+   text 4.5:1 (1.4.3), borders/icons/bars/focus ring 3:1 (1.4.11), on every surface they can sit on.
+   The @name tags in the comments below are what that script reads; keep the two dark blocks identical. */
+
+/* @light */
+:root{
+  color-scheme:light;
+  --bg:#f3f5f8; --panel:#ffffff; --panel2:#f8f9fb; --line:#dde2ea; --line2:#e9edf2;
+  --ctl:#738095;                 /* border of an input, select or button: 3:1 on every surface */
+  --text:#1c2330; --muted:#596375;
+  --accent:#165dce; --accent2:#e8f0ff; --accentText:#ffffff; --focus:#0b57d0;
+  --sel:#d9e7ff; --selLine:#5b8def; --hover:#eef3fb;
+  --ok:#137236; --warn:#a74c08; --err:#be2626; --danger:#c62828; --dangerText:#ffffff;
+  --bar:var(--accent); --barBg:#e3e8f0; --seg:var(--accent); --segDone:var(--ok); --segIdle:#c3cad6;
+  --shadow:0 10px 40px rgba(20,30,50,.22), 0 2px 6px rgba(20,30,50,.12);
+  --t-fast:.12s; --t:.2s; --t-slow:.35s;
+}
+/* @dark */
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#16191f; --panel:#1d2128; --panel2:#22272f; --line:#2f3540; --line2:#2a2f38;
+    --ctl:#78849a;
+    --text:#e5e9f0; --muted:#9da6b4;
+    --accent:#71a5ff; --accent2:#1f2c45; --accentText:#0b1220; --focus:#8ab4ff;
+    --sel:#24375a; --selLine:#5b86d6; --hover:#252b35;
+    --ok:#3ebb6d; --warn:#db981f; --err:#ff7e7e;
+    --barBg:#2b313b; --segIdle:#3a414d;
+    --shadow:0 10px 40px rgba(0,0,0,.5), 0 2px 6px rgba(0,0,0,.4);
+  }
+}
+/* @dark-chosen (View → Theme: dark) */
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#16191f; --panel:#1d2128; --panel2:#22272f; --line:#2f3540; --line2:#2a2f38;
+  --ctl:#78849a;
+  --text:#e5e9f0; --muted:#9da6b4;
+  --accent:#71a5ff; --accent2:#1f2c45; --accentText:#0b1220; --focus:#8ab4ff;
+  --sel:#24375a; --selLine:#5b86d6; --hover:#252b35;
+  --ok:#3ebb6d; --warn:#db981f; --err:#ff7e7e;
+  --barBg:#2b313b; --segIdle:#3a414d;
+  --shadow:0 10px 40px rgba(0,0,0,.5), 0 2px 6px rgba(0,0,0,.4);
+}
+
+/* more contrast (the system's "increase contrast"): darker text, strong borders everywhere */
+/* @light-more */
+@media (prefers-contrast: more){
+  :root{
+    --muted:#3f4858; --ctl:#4d5667; --line:#6b7587; --line2:#7a8497; --selLine:#165dce;
+    --ok:#0f5c2b; --warn:#7f3a05; --err:#9e1c1c; --focus:#0a3f9e;
+  }
+}
+/* @dark-more */
+@media (prefers-contrast: more) and (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --text:#ffffff; --muted:#c3cad6; --ctl:#aab4c5; --line:#8791a3; --line2:#6f7a8d; --selLine:#8ab4ff;
+    --ok:#6fd496; --warn:#f0b64d; --err:#ffa0a0; --focus:#b3cfff;
+  }
+}
+/* @dark-more-chosen */
+@media (prefers-contrast: more){
+  :root[data-theme="dark"]{
+    --text:#ffffff; --muted:#c3cad6; --ctl:#aab4c5; --line:#8791a3; --line2:#6f7a8d; --selLine:#8ab4ff;
+    --ok:#6fd496; --warn:#f0b64d; --err:#ffa0a0; --focus:#b3cfff;
+  }
+}
+
+/* Windows high contrast: the system's own colours; the pages add what the UA can't guess */
+@media (forced-colors: active){
+  :root:root{--accent:Highlight; --accentText:HighlightText; --focus:Highlight; --bar:Highlight; --barBg:Canvas; --seg:Highlight; --segDone:Highlight; --sel:Highlight; --ctl:ButtonText; --line:CanvasText; --line2:CanvasText; --selLine:Highlight}
+}
+
+/* one focus ring for everything that can take focus: only for the keyboard (:focus-visible), and
+   drawn outside the control so it never covers its text */
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+
+/* reduced motion: no slides, fades, pulses or spinning (a spinner stays as a still ring with its words) */
+@media (prefers-reduced-motion: reduce){
+  :root{--t-fast:0s; --t:0s; --t-slow:0s}
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;animation-delay:0s!important;transition-duration:.001ms!important;transition-delay:0s!important;scroll-behavior:auto!important}
+}

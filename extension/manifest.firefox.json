@@ -1,0 +1,94 @@
+{
+  "manifest_version": 3,
+  "name": "Zipline Download Catcher",
+  "version": "1.0.0",
+  "description": "Send links, videos and downloads to the Zipline Download Manager app for fast multi-connection downloading.",
+  "permissions": [
+    "alarms",
+    "contextMenus",
+    "downloads",
+    "cookies",
+    "storage",
+    "nativeMessaging",
+    "webRequest",
+    "webRequestBlocking",
+    "webRequestFilterResponse",
+    "scripting",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": [
+      "link.js",
+      "grab.js",
+      "background.js",
+      "takeover.js",
+      "prefs.js"
+    ]
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "video.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "links.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "commands": {
+    "zl-download": {
+      "suggested_key": {
+        "default": "Alt+Shift+Z"
+      },
+      "description": "Download the link under the pointer (or this page's video) with Zipline"
+    },
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Alt+Shift+X"
+      },
+      "description": "Open Zipline's menu"
+    }
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Zipline",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "zipline-catcher@zipline.app",
+      "strict_min_version": "115.0",
+      "data_collection_permissions": {
+        "required": [
+          "none"
+        ]
+      }
+    }
+  }
+}

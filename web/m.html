@@ -1,0 +1,948 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f3f5f8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#16191f" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Zipline">
+<meta name="referrer" content="no-referrer">
+<title>Zipline</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231a6cf0'/%3E%3Cpath d='M17.5 5 9 18h6l-1.5 9L23 14h-6z' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%231a6cf0'/%3E%3Cpath d='M17.5 5 9 18h6l-1.5 9L23 14h-6z' fill='%23fff'/%3E%3C/svg%3E">
+<style>
+/*ZL_COLORS*/
+:root{--gut:16px; --r:12px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
+body{min-height:100vh;min-height:100dvh}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 18px;border-radius:10px;border:1px solid var(--ctl);background:var(--panel);font-weight:500}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accentText)}
+.btn.danger{color:var(--err)}
+.btn.block{width:100%}
+.btn:disabled{opacity:.5}
+.inp{width:100%;min-height:46px;padding:10px 12px;border:1px solid var(--ctl);border-radius:10px;background:var(--panel);font-size:16px}
+.inp:focus{border-color:var(--accent)}
+::placeholder{color:var(--muted);opacity:1}
+.muted{color:var(--muted)}
+.logo{width:28px;height:28px;flex:none}
+
+/* pairing */
+.pair{max-width:420px;margin:0 auto;padding:calc(48px + env(safe-area-inset-top)) var(--gut) 32px}
+.pair .logo{width:56px;height:56px;margin-bottom:16px}
+.pair h1{font-size:24px;margin:0 0 8px}
+.pair h1:focus{outline:none}
+.pair p{margin:0 0 20px;color:var(--muted)}
+.pair .inp{font:600 20px/1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.06em;text-align:center;text-transform:uppercase}
+.pair .msg{min-height:22px;margin:10px 0 14px;font-size:14px}
+.pair .msg.bad{color:var(--err)}
+.pair ol{padding-left:20px;margin:28px 0 0;color:var(--muted);line-height:1.6;font-size:14px}
+
+/* app */
+.top{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);padding:calc(10px + env(safe-area-inset-top)) var(--gut) 0;border-bottom:1px solid var(--line2)}
+.bar{display:flex;align-items:center;gap:10px;min-height:44px}
+.bar h1{font-size:19px;margin:0;flex:1;min-width:0}
+.speed{font-variant-numeric:tabular-nums;color:var(--muted);font-size:14px;white-space:nowrap}
+.speed b{color:var(--text);font-weight:600}
+.iconbtn{width:44px;height:44px;border:0;background:none;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.iconbtn:active{background:var(--line2)}
+.iconbtn svg{width:22px;height:22px}
+.tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;padding:4px 0 10px}
+.tab{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;min-height:48px;padding:4px 6px;border:1px solid var(--ctl);background:var(--panel);border-radius:14px;font-size:13px;font-weight:500;line-height:1.2}
+.tab .n{color:var(--muted);font-weight:400;font-size:12px;font-variant-numeric:tabular-nums}
+.tab.on{background:var(--accent);border-color:var(--accent);color:var(--accentText)}
+.tab.on .n{color:inherit;opacity:.9}
+.banner{margin:12px var(--gut) 0;padding:10px 12px;border-radius:10px;font-size:14px;background:color-mix(in srgb,var(--warn) 14%,transparent);border:1px solid color-mix(in srgb,var(--warn) 40%,transparent)}
+.banner.act{display:flex;align-items:center;gap:12px;padding:6px 6px 6px 12px;font-variant-numeric:tabular-nums}
+.banner.act span{flex:1;min-width:0}
+.banner.act .btn{flex:none;padding:0 16px}
+main{padding:12px var(--gut) calc(100px + env(safe-area-inset-bottom));max-width:720px;margin:0 auto}
+.card{display:block;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line2);border-radius:var(--r);padding:12px 14px;margin-bottom:10px}
+.card:active{background:var(--panel2)}
+.row1{display:flex;gap:10px;align-items:flex-start}
+.dot{width:10px;height:10px;border-radius:3px;margin-top:6px;flex:none;background:var(--muted)}
+.name{flex:1;min-width:0;font-weight:500;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pb{display:block;height:6px;border-radius:3px;background:var(--barBg);margin:10px 0 8px;overflow:hidden}
+.pb i{display:block;height:100%;background:var(--accent);border-radius:3px;transition:width var(--t-slow)}
+.card.done .pb i{background:var(--ok)}
+.card.err .pb i{background:var(--err)}
+.card.paused .pb i{background:var(--warn)}
+.meta{display:flex;flex-wrap:wrap;gap:2px 14px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.meta span:empty{display:none}
+.meta .st{font-weight:500}
+.card.done .st{color:var(--ok)}
+.card.err .st{color:var(--err)}
+.why{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:6px;font-size:13px;color:var(--muted);overflow-wrap:anywhere}
+.why:empty{display:none}
+.empty{text-align:center;color:var(--muted);padding:48px 16px}
+.empty svg{width:48px;height:48px;opacity:.5;margin-bottom:8px}
+.fab{position:fixed;right:max(var(--gut),env(safe-area-inset-right));bottom:calc(20px + env(safe-area-inset-bottom));width:60px;height:60px;border-radius:18px;border:0;background:var(--accent);color:var(--accentText);box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;z-index:6}
+.fab svg{width:28px;height:28px}
+
+/* sheets */
+.scrim{position:fixed;inset:0;background:rgba(10,15,25,.45);z-index:20;opacity:0;transition:opacity var(--t);touch-action:none}
+.scrim.show{opacity:1}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:21;background:var(--panel);border-radius:18px 18px 0 0;box-shadow:var(--shadow);padding:8px var(--gut) calc(18px + env(safe-area-inset-bottom));max-height:88vh;max-height:88dvh;overflow:auto;overscroll-behavior:contain;transform:translateY(100%);transition:transform var(--t) ease-out;max-width:560px;margin:0 auto}
+.sheet.show{transform:none}
+.sheet:focus{outline:none}
+.grab{width:40px;height:5px;border-radius:3px;background:var(--line);margin:4px auto 4px}
+.shead{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.sheet h2{flex:1;min-width:0;font-size:18px;margin:0;padding:8px 0;overflow-wrap:anywhere}
+.shead .iconbtn{border-radius:50%;background:var(--line2);margin-right:-4px}
+.shead .iconbtn:active{background:var(--line)}
+.sheet .sub{color:var(--muted);font-size:14px;margin:0 0 16px;overflow-wrap:anywhere}
+.sheet .sub.why{display:block;margin-top:-8px}
+.sheet .sub:empty{display:none}
+.sheet .acts{display:grid;gap:10px}
+.sheet .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sheet .btn{min-height:48px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:14px;color:var(--muted);margin-bottom:6px}
+.line{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:52px;border-bottom:1px solid var(--line2)}
+.line label{flex:1;min-width:0}
+.line select.inp{width:auto;min-height:44px;max-width:55%;padding:6px 10px}
+.switch{width:100%;padding:0;border-width:0 0 1px;border-radius:0;background:none;text-align:left}
+.switch .track{position:relative;flex:none;width:52px;height:32px;border-radius:16px;background:var(--muted);transition:background .15s}
+.switch .track::after{content:"";position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:var(--accentText);box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .15s}
+.switch[aria-checked="true"] .track{background:var(--accent)}
+.switch[aria-checked="true"] .track::after{transform:translateX(20px)}
+.qrow{display:flex;align-items:center;gap:12px;min-height:56px;border-bottom:1px solid var(--line2)}
+.qrow .q{flex:1;min-width:0;overflow-wrap:anywhere}
+.qrow .q small{display:block;color:var(--muted)}
+.qrow .btn{flex:none;min-height:44px;padding:0 16px}
+.quota{margin:0 0 12px;padding:10px 12px;border-radius:10px;font-size:14px;background:var(--panel2);border:1px solid var(--line2)}
+.quota b{font-variant-numeric:tabular-nums}
+.quota.over{background:color-mix(in srgb,var(--warn) 14%,transparent);border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
+.tn-ok{color:var(--ok)}.tn-warn{color:var(--warn)}.tn-err{color:var(--err)}.tn-m{color:var(--muted)}
+.wait{display:flex;align-items:center;gap:12px;min-height:56px;color:var(--muted);margin-bottom:6px}
+.spin{flex:none;width:20px;height:20px;border:2.5px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.box{margin:0 0 14px;padding:10px 12px;border-radius:10px;font-size:14px;overflow-wrap:anywhere;background:var(--panel2);border:1px solid var(--line2)}
+.box.info{background:color-mix(in srgb,var(--accent) 10%,transparent);border-color:color-mix(in srgb,var(--accent) 35%,transparent)}
+.box.bad{background:color-mix(in srgb,var(--err) 10%,transparent);border-color:color-mix(in srgb,var(--err) 35%,transparent)}
+.box .btn{width:100%;margin-top:10px}
+.hint{margin:6px 0 14px;color:var(--muted);font-size:13px}
+.hint:last-child{margin-bottom:0}
+.sheet .sub.link{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:14px}
+.thead{margin:0 0 14px}
+.thead b{display:block;font-weight:600;overflow-wrap:anywhere}
+.thead .sub{margin:2px 0 0}
+.facts{display:grid;grid-template-columns:minmax(0,max-content) minmax(0,1fr);gap:4px 14px;margin:0 0 14px;font-size:14px}
+.facts>div:nth-child(odd){color:var(--muted)}
+.facts>div{overflow-wrap:anywhere}
+.stick{position:sticky;bottom:calc(-18px - env(safe-area-inset-bottom));z-index:1;margin:8px calc(-1 * var(--gut)) calc(-18px - env(safe-area-inset-bottom));padding:10px var(--gut) calc(18px + env(safe-area-inset-bottom));background:var(--panel);border-top:1px solid var(--line2)}
+.sheet .two .btn{padding:6px 10px;line-height:1.2;text-align:center}
+.lim{display:flex;gap:10px;align-items:center}
+.lim .inp{flex:1;min-width:0}
+.lim .btn{flex:none;padding:0 18px}
+.sheet input[type=checkbox]{flex:none;width:22px;height:22px;margin:0;accent-color:var(--accent)}
+.fold{margin:0 0 14px;border-bottom:1px solid var(--line2)}
+.fold summary{display:flex;align-items:center;min-height:48px;cursor:pointer;font-weight:500;list-style:none}
+.fold summary::-webkit-details-marker{display:none}
+.fold summary::after{content:"";margin:-4px 4px 0 auto;width:8px;height:8px;border:solid var(--muted);border-width:0 2px 2px 0;transform:rotate(45deg);transition:transform var(--t-fast)}
+.fold[open] summary::after{transform:translateY(4px) rotate(-135deg)}
+.fl-head{display:flex;align-items:center;gap:12px;min-height:48px;border-bottom:1px solid var(--line2)}
+.fl-head label{flex:1;display:flex;align-items:center;gap:12px;min-height:48px;min-width:0;font-weight:500}
+.fl-sel{color:var(--muted);font-size:13px;text-align:right;font-variant-numeric:tabular-nums}
+.fl-row{padding:4px 0 8px;border-bottom:1px solid var(--line2)}
+.fl-pick{display:flex;align-items:flex-start;gap:12px;min-height:34px;padding-top:6px}
+.fl-name{min-width:0;overflow-wrap:anywhere;line-height:1.3}
+.fl-dir{color:var(--muted)}
+.fl-sub{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-left:34px;color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
+.fl-sub select{min-height:36px;max-width:50%;padding:0 8px;border:1px solid var(--ctl);border-radius:8px;background:var(--panel);font-size:14px}
+.pair .acts{display:grid;gap:10px;margin-top:20px}
+.toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;z-index:30;max-width:calc(100% - 32px);box-shadow:var(--shadow);opacity:0;transition:opacity var(--t);pointer-events:none}
+.toast.show{opacity:1}
+.toast.top{bottom:auto;top:calc(16px + env(safe-area-inset-top))}
+@media (max-width:350px){ .tab{font-size:12px} }
+@media (min-width:480px){ .tabs{display:flex} .tab{flex-direction:row;gap:6px;min-height:44px;padding:0 18px;border-radius:999px;font-size:14px} .tab .n{font-size:14px} }
+@media (min-width:700px){ main{padding-top:20px} .sheet{border-radius:18px;bottom:24px} }
+/* Windows high contrast: system colours for the filled things, and bars that show up as an outline */
+@media (forced-colors: active){
+  :root .tab.on,:root .fab{background:Highlight;color:HighlightText;forced-color-adjust:none}
+  :root .btn.primary{background:ButtonFace;color:ButtonText;border:2px solid Highlight}
+  :root .pb{background:Canvas;outline:1px solid CanvasText}
+  :root .pb i{background:Highlight}
+  :root .toast{background:Canvas;color:CanvasText;border:1px solid CanvasText}
+}
+@media (prefers-reduced-motion: reduce){ *{transition:none!important} .spin{animation-duration:3s} }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="i-logo" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#1a6cf0"/><path d="M17.5 5 9 18h6l-1.5 9L23 14h-6z" fill="#fff"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.8" fill="currentColor"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><circle cx="19" cy="12" r="1.8" fill="currentColor"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5zM4 7.5l8 4.5 8-4.5M12 12v9" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/></symbol>
+</defs></svg>
+
+<section id="pair" class="pair" hidden>
+  <svg class="logo"><use href="#i-logo"/></svg>
+  <h1 id="pairtitle" tabindex="-1"></h1>
+  <p id="pairintro"></p>
+  <form id="pairform" autocomplete="off">
+    <input class="inp" id="code" inputmode="text" autocapitalize="characters" spellcheck="false" maxlength="22" placeholder="XXXX-XXXX-XXXX-XXXX">
+    <div class="msg" id="pairmsg"></div>
+    <button class="btn primary block" id="pairbtn"></button>
+  </form>
+  <ol>
+    <li id="step1"></li>
+    <li id="step2"></li>
+    <li id="step3"></li>
+  </ol>
+</section>
+
+<section id="await" class="pair" hidden>
+  <svg class="logo"><use href="#i-logo"/></svg>
+  <h1 id="awaittitle" tabindex="-1"></h1>
+  <p id="awaitbody" role="status"></p>
+  <div class="wait" id="awaitspin" aria-hidden="true"><span class="spin"></span></div>
+  <div class="acts">
+    <button type="button" class="btn primary block" id="awaitagain" hidden></button>
+    <button type="button" class="btn block" id="awaitcancel"></button>
+  </div>
+</section>
+
+<section id="app" hidden>
+  <header class="top">
+    <div class="bar">
+      <svg class="logo"><use href="#i-logo"/></svg>
+      <h1>Zipline</h1>
+      <span class="speed" id="speed"></span>
+      <button class="iconbtn" id="menu" aria-haspopup="dialog"><svg aria-hidden="true"><use href="#i-more"/></svg></button>
+    </div>
+    <div class="tabs" id="tabs" role="group"></div>
+  </header>
+  <div class="banner" id="offline" hidden role="status"></div>
+  <div class="banner act" id="power" hidden role="status"><span id="powertext"></span><button class="btn" id="powercancel"></button></div>
+  <div class="banner" id="quotaover" hidden role="status"></div>
+  <main>
+    <div id="list"></div>
+    <div class="empty" id="empty" hidden><svg aria-hidden="true"><use href="#i-box"/></svg><div id="emptytext"></div></div>
+  </main>
+  <button class="fab" id="add"><svg aria-hidden="true"><use href="#i-plus"/></svg></button>
+</section>
+
+<div class="scrim" id="scrim" hidden></div>
+<div class="sheet" id="sheet" hidden role="dialog" aria-modal="true" tabindex="-1"></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+"use strict";
+/*ZL_I18N*/
+const $ = s => document.querySelector(s);
+
+/*SIG*/
+// SHA-256 and HMAC (this page is served over plain http on the home network, where browsers
+// don't offer their built-in crypto)
+const K256 = new Uint32Array([0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2]);
+function sha256(bytes) {
+  const l = bytes.length, total = ((l + 9 + 63) >> 6) << 6;
+  const m = new Uint8Array(total); m.set(bytes); m[l] = 0x80;
+  const dv = new DataView(m.buffer);
+  dv.setUint32(total - 4, (l * 8) >>> 0); dv.setUint32(total - 8, Math.floor(l / 0x20000000));
+  const h = new Uint32Array([0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19]);
+  const w = new Uint32Array(64);
+  for (let o = 0; o < total; o += 64) {
+    for (let i = 0; i < 16; i++) w[i] = dv.getUint32(o + i * 4);
+    for (let i = 16; i < 64; i++) {
+      const a = w[i - 15], b = w[i - 2];
+      w[i] = w[i - 16] + ((a >>> 7 | a << 25) ^ (a >>> 18 | a << 14) ^ (a >>> 3)) + w[i - 7] + ((b >>> 17 | b << 15) ^ (b >>> 19 | b << 13) ^ (b >>> 10));
+    }
+    let a = h[0], b = h[1], c = h[2], d = h[3], e = h[4], f = h[5], g = h[6], k = h[7];
+    for (let i = 0; i < 64; i++) {
+      const t1 = (k + ((e >>> 6 | e << 26) ^ (e >>> 11 | e << 21) ^ (e >>> 25 | e << 7)) + ((e & f) ^ (~e & g)) + K256[i] + w[i]) | 0;
+      const t2 = (((a >>> 2 | a << 30) ^ (a >>> 13 | a << 19) ^ (a >>> 22 | a << 10)) + ((a & b) ^ (a & c) ^ (b & c))) | 0;
+      k = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+    }
+    h[0] += a; h[1] += b; h[2] += c; h[3] += d; h[4] += e; h[5] += f; h[6] += g; h[7] += k;
+  }
+  const out = new Uint8Array(32), odv = new DataView(out.buffer);
+  for (let i = 0; i < 8; i++) odv.setUint32(i * 4, h[i]);
+  return out;
+}
+const utf8 = s => new TextEncoder().encode(s);
+const hex = b => Array.from(b, x => x.toString(16).padStart(2, "0")).join("");
+function hmac(key, msg) {
+  if (key.length > 64) key = sha256(key);
+  const k = new Uint8Array(64); k.set(key);
+  const inner = new Uint8Array(64 + msg.length), outer = new Uint8Array(96);
+  for (let i = 0; i < 64; i++) { inner[i] = k[i] ^ 0x36; outer[i] = k[i] ^ 0x5c; }
+  inner.set(msg, 64); outer.set(sha256(inner), 64);
+  return sha256(outer);
+}
+const normCode = s => String(s).toUpperCase().replace(/[-\s]/g, "").replace(/O/g, "0").replace(/[IL]/g, "1");
+const deviceId = code => hex(sha256(utf8(normCode(code)))).slice(0, 12);
+const signature = (code, method, path, ts, body) => hex(hmac(utf8(normCode(code)), utf8(`${method}\n${path}\n${ts}\n${hex(sha256(utf8(body)))}`)));
+/*/SIG*/
+
+// ---- the pairing code (kept on this phone only)
+const store = {
+  get() { try { return localStorage.getItem("zl-key") || ""; } catch { return mem; } },
+  set(v) { mem = v; try { v ? localStorage.setItem("zl-key", v) : localStorage.removeItem("zl-key"); } catch {} },
+};
+let mem = "", skew = 0;
+let key = "";
+
+function phoneName() {
+  const ua = navigator.userAgent;
+  const dev = /iPhone/.test(ua) ? "iPhone" : /iPad|Macintosh.*Mobile/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? "iPad"
+    : /Android/.test(ua) ? ((ua.match(/Android [\d.]+; ([^;)]+?)(?: Build|\))/) || [])[1] || "Android phone") : /Windows/.test(ua) ? "Windows" : /Mac/.test(ua) ? "Mac" : "Phone";
+  const br = /EdgA?\//.test(ua) ? "Edge" : /SamsungBrowser/.test(ua) ? "Samsung Internet" : /Firefox|FxiOS/.test(ua) ? "Firefox" : /CriOS|Chrome/.test(ua) ? "Chrome" : /Safari/.test(ua) ? "Safari" : "";
+  return br ? `${dev.trim()} · ${br}` : dev.trim();
+}
+
+class AuthError extends Error {}
+class WaitError extends Error {} // this phone isn't allowed yet: the computer is still being asked (phonepair.go)
+async function api(path, body) {
+  const method = body === undefined ? "GET" : "POST";
+  const text = body === undefined ? "" : JSON.stringify(body);
+  const full = "/m/api/" + path;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const ts = String(Date.now() + skew);
+    const r = await fetch(full, { method, body: method === "POST" ? text : undefined, cache: "no-store",
+      headers: { "Content-Type": "application/json", "X-ZL-Device": deviceId(key), "X-ZL-Time": ts, "X-ZL-Sig": signature(key, method, full, ts, text) } });
+    if (r.ok) return r.json();
+    const msg = (await r.text()).trim();
+    if (r.status === 401 && msg === "clock" && attempt === 0) { skew = (+r.headers.get("X-ZL-Now") || Date.now()) - Date.now(); continue; }
+    if (r.status === 401 && msg === "replayed" && attempt === 0) continue;
+    if (r.status === 403) throw new WaitError(msg);
+    if (r.status === 401 || r.status === 429) throw new AuthError(r.status === 429 ? cap(msg) : "not paired");
+    throw new Error(msg || r.statusText);
+  }
+}
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+
+// ---- formatting
+// (sizes, speeds and times come from the shared words and formats, like the window's)
+const fmtLeft = sec => { const x = sec > 0 ? fmtTime(sec) : ""; return x ? t("ph.left", { time: x }) : ""; };
+// phPath: where on the computer the phone is paired
+const phPath = () => t("ph.path", { options: t("a.options"), phone: t("opt.phone") });
+const CAT = { Compressed: "#d68a00", Documents: "#1a6cf0", Music: "#d4357a", Programs: "#5f6b7d", Video: "#7c4dff", Images: "#1f9d55", General: "#8d97a8" };
+const isActive = d => ["downloading", "connecting", "queued"].includes(d.status);
+
+// ---- state and rendering
+let S = { downloads: [], queues: [], speed: 0, limit: { on: false, kb: 0 }, profile: null, quota: null }, tab = "all", poll = 0, failing = 0, fresh = 0;
+// the window's status filters (Status → Unfinished, Finished, Errors), so a count means the same on both
+const TABS = [["all", "ph.tabAll", () => true], ["unfinished", "sb.unfinished", d => d.status !== "completed"], ["finished", "sb.finished", d => d.status === "completed"], ["errors", "sb.errors", d => d.status === "error"]];
+try { tab = sessionStorage.getItem("zl-tab") || "all"; } catch {}
+if (!TABS.some(t => t[0] === tab)) tab = "all"; // (a name an older page saved)
+const setText = (el, t) => { if (el.textContent !== t) el.textContent = t; }; // (a new text node would drop a selection)
+const tabEls = TABS.map(([k, label]) => {
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "tab"; b.dataset.t = k;
+  b.innerHTML = `<span>${te(label)}</span><span class="n"></span>`;
+  return b;
+});
+$("#tabs").append(...tabEls);
+
+// powerNotice: the computer is about to turn off (sleep, exit…) when downloads finished, or carries
+// on with last time's downloads after start-up. Both can be cancelled from here.
+function powerNotice() {
+  const pw = S.power || {}, x = pw.pending || pw.resume, b = $("#power");
+  b.hidden = !x;
+  if (!x) return;
+  const secs = Math.max(0, Math.ceil((x.at - S.now) / 1000));
+  setText($("#powertext"), pw.pending && !x.at ? t("ph.powerWait", { text: x.text }) : t("ph.powerIn", { text: x.text, wait: fmtSecs(secs) }));
+  b.dataset.a = pw.pending ? "cancel" : "resumeCancel";
+}
+$("#powercancel").onclick = () => act(() => api("power", { action: $("#power").dataset.a }), t("wd.cancelled"));
+
+function render() {
+  powerNotice();
+  const prof = S.profile && S.profile.name ? ht("ph.profile", { name: nm(S.profile.name) }) : "";
+  const sp = S.speed > 0 ? `<b>${esc(fmtSpeed(S.speed))}</b>` : S.limit.on ? ht("ph.limit", { speed: fmtSpeed(S.limit.kb * 1024) }) : prof;
+  if ($("#speed")._h !== sp) { $("#speed").innerHTML = sp; $("#speed")._h = sp; }
+  const qo = $("#quotaover"), q = S.quota;
+  qo.hidden = !(q && q.over);
+  if (!qo.hidden) setText(qo, t("ph.quotaOver", { period: q.period }));
+  TABS.forEach(([k, , f], i) => { // the buttons stay put, so focus on one stays
+    const b = tabEls[i];
+    b.classList.toggle("on", k === tab); b.setAttribute("aria-pressed", k === tab);
+    setText(b.lastChild, String(S.downloads.filter(f).length));
+  });
+  renderList();
+  live && live();
+}
+// renderList updates the cards in place, keyed by download. Rebuilding the list every 1.5 s would
+// drop the focus and the scroll position, and a text selection with them.
+const cards = new Map(); // download id → its card
+function renderList() {
+  const f = TABS.find(x => x[0] === tab)[2], L = $("#list");
+  const list = S.downloads.filter(f).sort((a, b) => (isActive(b) - isActive(a)) || b.added - a.added);
+  const focused = L.contains(document.activeElement) ? document.activeElement : null;
+  const gone = new Map(cards);
+  let prev = null;
+  for (const d of list) {
+    let el = cards.get(d.id);
+    if (!el) cards.set(d.id, el = newCard(d.id));
+    gone.delete(d.id);
+    updateCard(el, d);
+    const want = prev ? prev.nextElementSibling : L.firstElementChild; // (only what's out of place moves)
+    if (want !== el) L.insertBefore(el, want);
+    prev = el;
+  }
+  for (const [id, el] of gone) { el.remove(); cards.delete(id); }
+  if (focused && document.activeElement !== focused) (focused.isConnected ? focused : $(".tab.on")).focus({ preventScroll: true }); // (a moved card loses focus)
+  $("#empty").hidden = list.length > 0;
+  setText($("#emptytext"), t("ph.none." + tab));
+}
+function newCard(id) {
+  const el = document.createElement("button");
+  el.type = "button"; el.className = "card"; el.dataset.id = id;
+  el.innerHTML = `<span class="row1"><i class="dot"></i><span class="name"><bdi></bdi></span></span><span class="pb" aria-hidden="true"><i></i></span><span class="meta"><span class="st"></span><span></span><span></span><span></span></span><span class="why"></span>`;
+  const m = el.querySelector(".meta").children;
+  el._r = { dot: el.querySelector(".dot"), name: el.querySelector(".name bdi"), bar: el.querySelector(".pb i"), why: el.querySelector(".why"), st: m[0], m: [m[1], m[2], m[3]] };
+  return el;
+}
+// metaOf: what a download shows after its status — sizes, speed, time left.
+function metaOf(d) {
+  const m = [];
+  if (d.status === "completed") m.push(fmtSize(d.size));
+  else if (d.size > 0) m.push(t("ph.of", { done: fmtSize(d.done), total: fmtSize(d.size) }));
+  else if (d.done > 0 && d.status !== "downloading") m.push(fmtSize(d.done)); // (while downloading the status says it)
+  if (d.status === "downloading" && d.speed > 0) { m.push(fmtSpeed(d.speed)); if (d.size > 0) m.push(fmtLeft((d.size - d.done) / d.speed)); }
+  return m;
+}
+function updateCard(el, d) {
+  const r = el._r, cls = "card" + (d.tone ? " " + d.tone : "");
+  if (el.className !== cls) el.className = cls;
+  const col = CAT[d.cat] || CAT.General;
+  if (r.col !== col) r.dot.style.background = r.col = col;
+  setText(r.name, d.name);
+  const w = ((d.prog >= 0 ? d.prog : 0) * 100).toFixed(1) + "%";
+  if (r.w !== w) r.bar.style.width = r.w = w;
+  setText(r.st, d.text);
+  const m = metaOf(d);
+  r.m.forEach((x, i) => setText(x, m[i] || ""));
+  setText(r.why, d.note || "");
+}
+
+async function refresh() {
+  clearTimeout(poll);
+  const mine = ++fresh;
+  try {
+    const st = await api("state");
+    if (mine !== fresh) return; // another refresh started meanwhile: the later answer wins and keeps the timer
+    S = st;
+    failing = 0; $("#offline").hidden = true;
+    render();
+  } catch (e) {
+    if (mine !== fresh) return;
+    if (e instanceof AuthError) return unpaired(e.message);
+    if (e instanceof WaitError) return start(key, "saved");
+    if (++failing >= 2) $("#offline").hidden = false;
+  }
+  if (document.visibilityState === "visible") poll = setTimeout(refresh, failing ? 4000 : 1500);
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && key) refresh(); });
+
+// ---- sheets
+// A sheet is a modal dialog: the page behind it is inert, focus moves in and comes back to what
+// opened it, Escape and the close button shut it. live, if set, updates the open sheet in place
+// after each refresh (its content is never rebuilt, so nothing typed or focused is lost).
+// sheetN counts the sheets shown, so an answer that comes back for an older one is dropped; sheetEnd runs when the sheet is replaced or closed.
+let sheetOpen = false, opener = null, closeTimer = 0, live = null, sheetN = 0, sheetEnd = null;
+function endSheet() { const f = sheetEnd; sheetEnd = null; f && f(); }
+function sheet(title, html, wire) {
+  const sh = $("#sheet"), sc = $("#scrim");
+  clearTimeout(closeTimer);
+  if (!sheetOpen) opener = document.activeElement;
+  endSheet();
+  sheetOpen = true; sheetN++; live = null;
+  sh.innerHTML = `<div class="grab"></div><div class="shead"><h2 id="sheettitle"><bdi>${esc(title)}</bdi></h2><button type="button" class="iconbtn" id="sheetx" aria-label="${te("btn.close")}"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div>${html}`;
+  sh.setAttribute("aria-labelledby", "sheettitle");
+  sh.hidden = sc.hidden = false;
+  $("#app").inert = true;
+  requestAnimationFrame(() => { sh.classList.add("show"); sc.classList.add("show"); });
+  $("#sheetx").onclick = closeSheet;
+  wire && wire(sh);
+  sh.focus({ preventScroll: true });
+  return sheetN;
+}
+function closeSheet() {
+  if (!sheetOpen) return;
+  sheetOpen = false; live = null; sheetN++;
+  endSheet();
+  const sh = $("#sheet"), sc = $("#scrim");
+  sh.classList.remove("show"); sc.classList.remove("show");
+  $("#app").inert = false;
+  const back = opener; opener = null; // (what opened it may be gone by now: the list's current tab then)
+  const to = back && back.isConnected && !back.closest("[hidden]") ? back : $("#app").hidden ? null : $(".tab.on");
+  to && to.focus({ preventScroll: true });
+  closeTimer = setTimeout(() => { sh.hidden = sc.hidden = true; sh.innerHTML = ""; }, 220);
+}
+$("#scrim").onclick = closeSheet;
+document.addEventListener("keydown", e => { if (e.key === "Escape" && sheetOpen) { e.preventDefault(); closeSheet(); } });
+$("#sheet").addEventListener("keydown", e => { // Tab stays inside the sheet
+  if (e.key !== "Tab") return;
+  const sh = $("#sheet"), all = [...sh.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),summary')].filter(x => !x.hidden);
+  if (!all.length) return e.preventDefault();
+  const at = document.activeElement, end = all[e.shiftKey ? 0 : all.length - 1];
+  if (at === end || (e.shiftKey && at === sh)) { e.preventDefault(); all[e.shiftKey ? all.length - 1 : 0].focus(); }
+});
+let tt;
+// (over an open sheet a toast goes to the top, off the buttons)
+function toast(m) { const el = $("#toast"); put(el, m); el.classList.toggle("top", sheetOpen); el.classList.add("show"); clearTimeout(tt); tt = setTimeout(() => el.classList.remove("show"), 2600); }
+
+async function act(fn, ok) { // true when it worked
+  try { await fn(); closeSheet(); if (ok) toast(ok); refresh(); return true; }
+  catch (e) { if (e instanceof AuthError) return unpaired(e.message); if (e instanceof WaitError) return start(key, "saved"); toast(e.message || t("ph.wrong")); return false; }
+}
+
+function itemSheet(d) {
+  const id = d.id, cur = () => S.downloads.find(x => x.id === id);
+  sheet(d.name || t("ph.download"), `<p class="sub" id="isub"></p><p class="sub why" id="iwhy"></p>
+    <div class="field" id="ilimbox"><label for="ilim">${te("pf.limit")}</label>
+      <div class="lim"><input class="inp" id="ilim" type="text" inputmode="numeric" placeholder="0" autocomplete="off" aria-describedby="ilimhint"><button type="button" class="btn" id="ilimset">${te("btn.save")}</button></div>
+      <p class="hint" id="ilimhint">${te("pr.limitUnit")}</p></div>
+    <div class="acts"><button type="button" class="btn block" id="imain"></button><button type="button" class="btn block" id="ifiles" hidden>${te("ctx.chooseFiles")}</button><button type="button" class="btn danger block" id="irm">${te("a.removeFromList")}</button></div>`, sh => {
+    const main = sh.querySelector("#imain"), rm = sh.querySelector("#irm"), files = sh.querySelector("#ifiles"), lim = sh.querySelector("#ilim"), limSet = sh.querySelector("#ilimset");
+    lim.value = d.limitKB > 0 ? d.limitKB : ""; // (set once: a refresh never rewrites what is being typed)
+    // fill shows the download as it is now; the first button follows its state, as in the window's progress
+    // window (Pause, Resume, Try again, and for a torrent Stop sharing or Share again)
+    const fill = x => {
+      const tor = x.torrent, done = x.status === "completed";
+      setText(sh.querySelector("#isub"), [x.text, ...metaOf(x), ...(done ? [t("ph.savedOnPc")] : []), ...(x.limitKB > 0 ? [t("row.limitedTip", { rate: fmtSpeed(x.limitKB * 1024) })] : [])].join(" · "));
+      setText(sh.querySelector("#iwhy"), x.note || "");
+      const a = tor && tor.seeding ? "stopSharing" : done ? (tor ? "start" : "") : isActive(x) ? "pause" : "start";
+      if (!a && document.activeElement === main) sh.focus({ preventScroll: true });
+      main.hidden = !a; main.dataset.a = a;
+      main.classList.toggle("primary", a === "start");
+      setText(main, t(a === "pause" ? "a.pause" : a === "stopSharing" ? "a.stopSharing" : tor && done ? "a.shareAgain" : x.status === "error" ? "a.tryAgain" : "a.resume"));
+      files.hidden = !(tor && tor.meta && tor.files > 1);
+      sh.querySelector("#ilimbox").hidden = done; // (a finished download has no speed to limit)
+    };
+    fill(d);
+    live = () => { const x = cur(); if (x) fill(x); else { closeSheet(); toast(t("ph.gone")); } };
+    main.onclick = () => {
+      if (main.dataset.a === "start") return startIds([id], false);
+      act(async () => noError(await api("action", { action: main.dataset.a, ids: [id] })), "");
+    };
+    files.onclick = () => filesSheet(cur() || d);
+    // the limit for this download alone (KB/s; empty or 0: none)
+    const saveLimit = async () => {
+      const v = lim.value.trim(), kb = v === "" ? 0 : Number(v);
+      if (!Number.isInteger(kb) || kb < 0 || kb > 10000000) { toast(t("ph.limitBad")); lim.focus(); return; }
+      limSet.disabled = true;
+      try { noError(await api("dlimit", { id, kb })); toast(kb ? t("row.limitedTip", { rate: fmtSpeed(kb * 1024) }) : t("ph.limitOff")); refresh(); }
+      catch (e) { if (e instanceof AuthError) return unpaired(e.message); toast(e.message || t("ph.wrong")); }
+      finally { limSet.disabled = false; }
+    };
+    limSet.onclick = saveLimit;
+    lim.onkeydown = e => { if (e.key === "Enter") saveLimit(); };
+    rm.onclick = () => {
+      if (!rm.dataset.armed) { // ask once more: removing an unfinished one throws its data away
+        const done = (cur() || d).status === "completed";
+        rm.dataset.armed = "1";
+        rm.textContent = t(done ? "ph.tapRemove" : "ph.tapDelete");
+        rm.dataset.done = done ? "1" : "";
+        setTimeout(() => { if (rm.isConnected) { delete rm.dataset.armed; rm.textContent = t("a.removeFromList"); } }, 4000);
+        return;
+      }
+      act(async () => noError(await api("action", { action: "remove", ids: [id] })), t(rm.dataset.done ? "ph.removedKeep" : "ph.removed"));
+    };
+  });
+}
+
+// startIds starts downloads. One waiting for the free data hours asks first outside them (the computer asks too, gate.go).
+async function startIds(ids, sure) {
+  try {
+    const r = await api("action", { action: "start", ids, sure: !!sure });
+    if (r && r.ask === "freeHours") return freeHoursSheet("cf.freeHoursTitle", "cf.freeHoursBody", "cf.freeHoursNow", () => startIds(ids, true));
+    noError(r); closeSheet(); refresh();
+  } catch (e) { if (e instanceof AuthError) return unpaired(e.message); if (e instanceof WaitError) return start(key, "saved"); toast(e.message || t("ph.wrong")); }
+}
+async function startQueue(id, sure) {
+  try {
+    const r = await api("queue", { action: "start", id, sure: !!sure });
+    if (r && r.ask === "freeHours") return freeHoursSheet("cf.queueFreeHoursTitle", "cf.queueFreeHoursBody", "cf.startNow", () => startQueue(id, true));
+    noError(r); closeSheet(); refresh();
+  } catch (e) { if (e instanceof AuthError) return unpaired(e.message); if (e instanceof WaitError) return start(key, "saved"); toast(e.message || t("ph.wrong")); }
+}
+function freeHoursSheet(title, body, ok, again) {
+  sheet(t(title), `<p class="sub">${te(body, { window: planWindowText(S.plan) })}</p>
+    <div class="two"><button type="button" class="btn" id="no">${te("btn.cancel")}</button><button type="button" class="btn primary" id="yes">${te(ok)}</button></div>`, sh => {
+    sh.querySelector("#no").onclick = closeSheet;
+    sh.querySelector("#yes").onclick = () => { closeSheet(); again(); };
+  });
+}
+
+// ---- adding a link: what the window's Add dialog does, in a sheet. The computer reads the link first (its
+// name and size, what kind it is, a stopped download this link could finish, a torrent's files). Then the sheet
+// asks what the Add dialog asks (name, which queue Download later puts it in, which files), and the add itself
+// is the window's own (phone.go), so a .torrent, a magnet link or a metalink is never saved as a plain file.
+const LINK_OK = /^((https?|ftps?):\/\/\S+|magnet:\?\S+)$/i;
+const urlName = u => { try { return decodeURIComponent(u.split("?")[0].split("/").pop() || "download"); } catch { return "download"; } };
+const qName = id => (S.queues.find(q => q.id === id) || {}).name || "";
+const queueOptions = sel => S.queues.map(q => `<option value="${esc(q.id)}"${q.id === sel ? " selected" : ""}>${esc(q.name)}</option>`).join("");
+// laterQueue: where Download later goes at first: outside the free data hours, the Free data hours queue, as in the window
+function laterQueue() {
+  const p = S.plan;
+  if (p && p.on && !p.in && S.queues.some(q => q.id === PLAN_Q)) return PLAN_Q;
+  return S.queues.length ? S.queues[0].id : "main";
+}
+// addTold: what the toast says once it's added
+const addTold = (start, qid) => start ? t("ph.addedNow")
+  : qid === PLAN_Q && S.plan && S.plan.on ? th("n.addedFree", { window: planWindowText(S.plan) })
+  : th("n.addedTo", { queue: qName(qid) ? nm(qName(qid)) : t("n.theQueue") });
+// sendAdd adds with the sheet's buttons off meanwhile; a refusal leaves the sheet open for another try
+async function sendAdd(sh, body, start) {
+  const bs = [...sh.querySelectorAll("button")];
+  bs.forEach(b => b.disabled = true);
+  const ok = await act(async () => { const r = noError(await api("add", { ...body, start })); if (!r.ok) throw new Error(t("ph.wrong")); }, addTold(start, body.queueId));
+  if (!ok && sheetOpen) bs.forEach(b => b.disabled = false);
+  return ok;
+}
+
+function addSheet() {
+  sheet(t("a.addLink"), `<p class="sub">${te("ph.addIntro")}</p>
+    <div class="field"><input class="inp" id="url" type="text" inputmode="url" placeholder="${te("ph.addPh")}" aria-label="${te("ph.addAria")}" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+    <div class="acts"><button type="button" class="btn primary" id="ok">${te("btn.ok")}</button></div>`, sh => {
+    const u = sh.querySelector("#url");
+    setTimeout(() => { if (sheetOpen && document.activeElement === sh) u.focus(); }, 250); // (once the sheet has slid in, unless they've tapped elsewhere)
+    const go = () => {
+      const v = u.value.trim();
+      if (!LINK_OK.test(v)) { toast(t("ph.addBad")); u.focus(); return; }
+      linkSheet(v);
+    };
+    sh.querySelector("#ok").onclick = go;
+    u.onkeydown = e => { if (e.key === "Enter") go(); };
+  });
+}
+async function linkSheet(url) {
+  const me = sheet(t("a.addLink"), `<div class="wait" role="status"><span class="spin" aria-hidden="true"></span><span>${te("fi.requesting")}</span></div>`);
+  let info;
+  try { info = await api("probe", { url }); }
+  catch (e) {
+    if (e instanceof AuthError) return unpaired(e.message);
+    if (e instanceof WaitError) return start(key, "saved");
+    info = { error: e.message || t("ph.wrong") };
+  }
+  if (me !== sheetN) return; // closed meanwhile
+  if (info.protected) { // YouTube, DRM services
+    sheet(t("a.addLink"), `<div class="box bad">${esc(cap(info.error))}.</div><div class="acts"><button type="button" class="btn" id="x">${te("btn.close")}</button></div>`, sh => { sh.querySelector("#x").onclick = closeSheet; });
+    return;
+  }
+  if (info.kind === "torrent") torrentSheet(url, info); else plainSheet(url, info);
+}
+
+// plainSheet is the Add dialog for a file, a video stream or a metalink
+function plainSheet(url, info) {
+  const hls = info.kind === "hls", blocked = hls && !!info.error, live = hls && !!info.live && !blocked;
+  const fold = info.folder, ml = info.metalink || fold, mlFiles = ml ? ml.files : [], multi = mlFiles.length > 1, match = info.matches; // (a shared folder lists its files like a metalink)
+  const name = info.name || urlName(url);
+  const q = match && match.size > 0 ? match.done / match.size * 100 : 0; // the same file as a download whose link expired
+  const boxes = (!match ? "" : `<div class="box info"><div>${ht("fi.match", { name: nm(match.name), pct: fmtPct(q < 10 ? q : Math.floor(q), q < 10 ? 1 : 0) })}</div><button type="button" class="btn" id="renew">${te("fi.renew")}</button></div>`)
+    + (!info.error ? "" : blocked ? `<div class="box bad">${esc(cap(info.error))}.</div>`
+      : info.challenge ? `<div class="box bad">${te("ph.challenge")}</div>`
+      : `<div class="box bad">${ht("fi.readFail", { error: info.error })}</div>`)
+    + (live ? `<div class="box bad">${te("ph.noLive")}</div>` : "");
+  const facts = [];
+  if (hls) facts.push([te("fact.type"), ht(live ? (info.event ? "fi.eventType" : "fi.liveType") : info.fmp4 && info.format !== "DASH" ? "fi.hlsTypeMp4" : "fi.hlsType", { format: info.format || "HLS" })]);
+  else if (fold) facts.push([te("fact.type"), ht(fold.total > 0 ? "fi.folderSize" : "fi.folder", { n: mlFiles.length, size: fmtSize(fold.total) })]);
+  else if (ml) facts.push([te("fact.type"), ht(ml.total > 0 ? "fi.metalinkSize" : "fi.metalink", { n: mlFiles.length, size: fmtSize(ml.total) })]);
+  else {
+    facts.push([te("fact.size"), esc(info.size > 0 ? fmtSize(info.size) : t("size.unknown"))]);
+    if (info.mime) facts.push([te("fact.type"), esc(info.mime)]);
+  }
+  if (S.plan && S.plan.on) facts.push([te("fact.freeHours"), esc(cap(planWindowText(S.plan)))]);
+  const files = !multi ? "" : `<div class="field"><label for="mlf">${te("f.download")}</label><select class="inp" id="mlf"><option value="-1">${te(ml.total > 0 ? "fi.allFilesSize" : "fi.allFiles", { n: mlFiles.length, size: fmtSize(ml.total) })}</option>${mlFiles.map((f, i) => `<option value="${i}">${esc(f.name)}${f.size > 0 ? ` (${esc(fmtSize(f.size))})` : ""}</option>`).join("")}</select></div>`;
+  sheet(t("a.addLink"), `${boxes}
+    <p class="sub link">${esc(url)}</p>
+    ${files}
+    <div class="field"><label for="nm">${te("f.fileName")}</label><input class="inp" id="nm" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+    <div class="field"><label for="qsel">${te("f.laterInto")}</label><select class="inp" id="qsel">${queueOptions(laterQueue())}</select></div>
+    <div class="facts">${facts.map(([k, v]) => `<div>${k}</div><div>${v}</div>`).join("")}</div>
+    ${hls && !blocked && !live ? `<p class="hint">${te("ph.hlsAuto")}</p>` : ""}
+    <div class="stick two"><button type="button" class="btn" id="later"></button><button type="button" class="btn primary" id="now">${te("fi.start")}</button></div>`, sh => {
+    const nameIn = sh.querySelector("#nm"), qsel = sh.querySelector("#qsel"), later = sh.querySelector("#later"), now = sh.querySelector("#now"), mlf = sh.querySelector("#mlf");
+    nameIn.value = name;
+    sh.querySelector("#renew") && (sh.querySelector("#renew").onclick = async e => {
+      e.currentTarget.disabled = true;
+      const ok = await act(async () => noError(await api("renew", { id: match.id, url })), th("ph.renewed", { name: nm(match.name) }));
+      if (!ok && sheetOpen) e.currentTarget.disabled = false;
+    });
+    const laterLabel = () => setText(later, t(qsel.value === PLAN_Q ? "fi.laterFree" : "fi.later"));
+    qsel.onchange = laterLabel; laterLabel();
+    if (mlf) mlf.onchange = () => { // one file of a metalink has a name of its own; all of them keep theirs
+      const i = +mlf.value;
+      nameIn.disabled = i < 0; nameIn.value = i < 0 ? t("fi.eachOwnName") : mlFiles[i].name;
+    };
+    if (mlf) mlf.onchange();
+    later.disabled = now.disabled = blocked || live;
+    const go = start => {
+      const body = { url, name: nameIn.disabled ? "" : nameIn.value.trim(), queueId: qsel.value, probed: true, size: !hls && !ml && info.size > 0 ? info.size : 0 };
+      if (ml) Object.assign(body, { meta: true, metaFile: multi ? +mlf.value : 0 });
+      sendAdd(sh, body, start);
+    };
+    now.onclick = () => go(true);
+    later.onclick = () => go(false);
+  });
+}
+
+// ---- a torrent's files: a tick for each, and how soon (Skip, Low, Normal, High), as in the window
+const PRIOS = [["skip", "prio.skip"], ["-1", "prio.low"], ["0", "prio.normal"], ["1", "prio.high"]];
+const prioValue = (on, p) => on ? String(p || 0) : "skip";
+const FILE_CAP = 1000; // (the phone shows this many; the rest keep the choice made for "all")
+// fileModel keeps which files are wanted and their priority
+function fileModel(files, count) {
+  const list = [...files].sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true, sensitivity: "base" }));
+  for (const f of list) count = Math.max(count || 0, f.i + 1);
+  const checked = new Set(list.filter(f => !f.skip).map(f => f.i)), prio = new Map(list.filter(f => f.prio).map(f => [f.i, f.prio]));
+  return { list, checked, prio,
+    size: () => list.reduce((a, f) => a + (checked.has(f.i) ? f.size : 0), 0),
+    pick: () => ({ skip: Array.from({ length: count }, (_, i) => !checked.has(i)), prio: Array.from({ length: count }, (_, i) => prio.get(i) || 0) }) };
+}
+// fileRows draws the list in box; changed is called after every tick or priority
+function fileRows(box, fm, changed) {
+  const n = fm.list.length;
+  const row = f => {
+    const at = f.path.lastIndexOf("/"), nameOnly = f.path.slice(at + 1), v = prioValue(fm.checked.has(f.i), fm.prio.get(f.i));
+    return `<div class="fl-row"><label class="fl-pick"><input type="checkbox" data-i="${f.i}"${fm.checked.has(f.i) ? " checked" : ""}><span class="fl-name">${at >= 0 ? `<span class="fl-dir">${esc(f.path.slice(0, at + 1))}</span>` : ""}${esc(nameOnly)}</span></label>
+      <div class="fl-sub"><span>${esc(fmtSize(f.size))}</span><select data-p="${f.i}" aria-label="${te("tor.prioAria", { name: nm(nameOnly) })}">${PRIOS.map(([x, id]) => `<option value="${x}"${x === v ? " selected" : ""}>${te(id)}</option>`).join("")}</select></div></div>`;
+  };
+  box.innerHTML = `<div class="fl-head"><label><input type="checkbox" id="fl-all"><span>${te("tor.files")}</span></label><span class="fl-sel" id="fl-sel"></span></div>
+    <div class="fl-list">${fm.list.slice(0, FILE_CAP).map(row).join("")}</div>${n > FILE_CAP ? `<p class="hint">${te("tor.firstN", { n: FILE_CAP })}</p>` : ""}`;
+  const all = box.querySelector("#fl-all"), sel = box.querySelector("#fl-sel");
+  const sync = () => {
+    all.checked = fm.checked.size === n; all.indeterminate = fm.checked.size > 0 && fm.checked.size < n;
+    setText(sel, t("tor.chosen", { checked: fm.checked.size, n, size: fmtSize(fm.size()) }));
+    changed();
+  };
+  box.onchange = e => {
+    const x = e.target;
+    if (x === all) {
+      fm.list.forEach(f => x.checked ? fm.checked.add(f.i) : fm.checked.delete(f.i));
+      box.querySelectorAll("input[data-i]").forEach(c => { c.checked = x.checked; const s = box.querySelector(`select[data-p="${c.dataset.i}"]`); s.value = prioValue(x.checked, fm.prio.get(+c.dataset.i)); });
+    } else if (x.dataset.i !== undefined) {
+      const i = +x.dataset.i;
+      x.checked ? fm.checked.add(i) : fm.checked.delete(i);
+      box.querySelector(`select[data-p="${i}"]`).value = prioValue(x.checked, fm.prio.get(i));
+    } else if (x.dataset.p !== undefined) {
+      const i = +x.dataset.p;
+      if (x.value === "skip") fm.checked.delete(i); else { fm.checked.add(i); fm.prio.set(i, +x.value); }
+      box.querySelector(`input[data-i="${i}"]`).checked = x.value !== "skip";
+    } else return;
+    sync();
+  };
+  sync();
+}
+
+// torrentSheet is the Add dialog for a torrent (a .torrent link or a magnet link): where it goes, which files
+// (a magnet link's list arrives from peers meanwhile), and the in-order options.
+function torrentSheet(url, info) {
+  const link = info.url || url, magnet = /^magnet:/i.test(link);
+  let fm = null, timer = 0, added = false;
+  const setFiles = () => { fm = info.files && info.files.length ? fileModel(info.files, info.fileCount || 0) : null; };
+  setFiles();
+  sheet(t("tor.title"), `${info.exists ? `<div class="box info">${ht("tor.exists", { name: nm(info.exists) })}</div>` : ""}
+    <div class="thead"><b id="tname"></b><p class="sub" id="tsub"></p></div>
+    <div class="field"><label for="qsel">${te("f.laterInto")}</label><select class="inp" id="qsel">${queueOptions(laterQueue())}</select></div>
+    <details class="fold"><summary>${te("ph.moreOpts")}</summary>
+      <button type="button" class="line switch" role="switch" aria-checked="false" id="tseq"><span>${te("tor.seq")}</span><i class="track" aria-hidden="true"></i></button>
+      <button type="button" class="line switch" role="switch" aria-checked="false" id="tends"><span>${te("tor.ends")}</span><i class="track" aria-hidden="true"></i></button>
+      <p class="hint">${te("tor.orderHint")}</p>
+    </details>
+    <div id="tfiles"></div>
+    <div class="stick two"><button type="button" class="btn" id="later"></button><button type="button" class="btn primary" id="now">${te("fi.start")}</button></div>`, sh => {
+    const me = sheetN, qsel = sh.querySelector("#qsel"), later = sh.querySelector("#later"), now = sh.querySelector("#now"), box = sh.querySelector("#tfiles");
+    const sw = sh.querySelectorAll(".switch");
+    sw.forEach(b => b.onclick = () => b.setAttribute("aria-checked", b.getAttribute("aria-checked") !== "true"));
+    const laterLabel = () => setText(later, t(qsel.value === PLAN_Q ? "fi.laterFree" : "fi.later"));
+    qsel.onchange = laterLabel; laterLabel();
+    const sync = () => { later.disabled = now.disabled = !!info.exists || !!fm && fm.list.length > 1 && !fm.checked.size; };
+    const draw = () => {
+      setText(sh.querySelector("#tname"), info.name || t("tor.default"));
+      setText(sh.querySelector("#tsub"), fm ? t(info.private ? "tor.subPrivate" : "tor.sub", { size: fmtSize(info.size), n: fm.list.length }) : t("tor.sizeUnknown"));
+      if (!fm) box.innerHTML = `<div class="wait" role="status"><span class="spin" aria-hidden="true"></span><div><b>${te("tor.getting")}</b><div class="hint" id="tpeers">${te("tor.looking")}</div></div></div>`;
+      else if (fm.list.length > 1) fileRows(box, fm, sync);
+      else box.innerHTML = "";
+      sync();
+    };
+    draw();
+    // a magnet link's file list comes from peers: ask until it's there (and tell the computer when it's no longer wanted)
+    if (!fm && magnet) {
+      const poll = async () => {
+        if (me !== sheetN) return;
+        let r = null;
+        try { r = await api("tmeta", { url: link }); } catch (e) { if (e instanceof AuthError) return unpaired(e.message); }
+        if (me !== sheetN) return;
+        if (r && r.files) { Object.assign(info, { name: r.name, size: r.size, private: r.private, fileCount: r.fileCount, files: r.files, exists: r.exists || info.exists }); setFiles(); draw(); return; }
+        const p = sh.querySelector("#tpeers");
+        if (p && r) setText(p, r.peers ? t("ph.torPeers", { n: r.peers, pct: r.metaPct ? fmtPct(r.metaPct, 0) : "none" }) : t("ph.torLooking"));
+        timer = setTimeout(poll, 1500);
+      };
+      poll();
+    }
+    sheetEnd = () => { clearTimeout(timer); if (magnet && !added) api("tmeta", { url: link, stop: true }).catch(() => {}); };
+    const go = async start => {
+      const body = { url: link, queueId: qsel.value, probed: true, seq: sw[0].getAttribute("aria-checked") === "true", ends: sw[1].getAttribute("aria-checked") === "true", ...(fm ? fm.pick() : {}) };
+      if (await sendAdd(sh, body, start)) added = true;
+    };
+    now.onclick = () => go(true);
+    later.onclick = () => go(false);
+  });
+}
+
+// filesSheet changes which files of a torrent in the list are downloaded, and how soon
+async function filesSheet(d) {
+  const me = sheet(t("tor.files"), `<div class="wait" role="status"><span class="spin" aria-hidden="true"></span><span>${te("btn.loading")}</span></div>`);
+  let r;
+  try { r = await api("tfiles", { id: d.id }); }
+  catch (e) {
+    if (e instanceof AuthError) return unpaired(e.message);
+    if (e instanceof WaitError) return start(key, "saved");
+    r = { error: e.message };
+  }
+  if (me !== sheetN) return;
+  if (r.error || !r.files || !r.files.length) {
+    sheet(t("tor.files"), `<div class="box bad">${esc(r.error ? cap(r.error) : t("ph.noFiles"))}</div><div class="acts"><button type="button" class="btn" id="x">${te("btn.close")}</button></div>`, sh => { sh.querySelector("#x").onclick = closeSheet; });
+    return;
+  }
+  const fm = fileModel(r.files, r.fileCount || 0);
+  sheet(t("tor.files"), `<div class="thead"><b><bdi>${esc(d.name)}</bdi></b></div><div id="tfiles"></div>
+    <div class="stick two"><button type="button" class="btn" id="no">${te("btn.cancel")}</button><button type="button" class="btn primary" id="save">${te("btn.save")}</button></div>`, sh => {
+    const save = sh.querySelector("#save");
+    const draw = () => { save.disabled = fm.list.length > 1 && !fm.checked.size; };
+    fileRows(sh.querySelector("#tfiles"), fm, draw);
+    sh.querySelector("#no").onclick = closeSheet;
+    save.onclick = () => { save.disabled = true; act(async () => noError(await api("tpick", { id: d.id, ...fm.pick() })), t("ph.filesSaved")).then(ok => { if (!ok && sheetOpen) draw(); }); };
+  });
+}
+
+// noError turns an answer that says what went wrong into an error (shown as a note).
+const noError = r => { if (r && r.error) throw new Error(r.error); return r; };
+function quotaHTML() {
+  const q = S.quota;
+  if (!q) return "";
+  return `<div class="quota${q.over ? " over" : ""}">${ht("ph.quota", { period: t(q.period === "month" ? "quota.month" : "quota.today"), used: fmtSize(q.used), limit: fmtSize(q.limit), hasNet: q.net ? "y" : "n", net: nm(q.net || ""), over: q.over ? "yes" : "no" })}</div>`;
+}
+function menuSheet() {
+  const qs = (S.queues || []).map(q => `<div class="qrow"><div class="q"><bdi>${esc(q.name)}</bdi><small>${te(q.running ? "sb.running" : "ph.qStopped")}</small></div><button type="button" class="btn" aria-label="${te(q.running ? "a.stopNamed" : "a.startNamed", { name: q.name })}" data-q="${esc(q.id)}" data-run="${q.running ? 1 : 0}">${te(q.running ? "a.stop" : "a.start")}</button></div>`).join("");
+  const p = S.profile, profs = p && p.list && p.list.length ? p.list : [];
+  const until = p && p.until ? fmtClock(new Date(p.until)) : "";
+  sheet("Zipline", `<p class="sub">${te("ph.connected")}</p>
+    ${quotaHTML()}
+    ${profs.length ? `<div class="line"><label for="prof">${te("ph.profLabel", { hasUntil: until ? "y" : "n", time: until })}</label><select class="inp" id="prof">${profs.map(x => `<option value="${esc(x.id)}"${x.id === p.id ? " selected" : ""}>${esc(x.name)}</option>`).join("")}</select></div>` : ""}
+    <button type="button" class="line switch" id="lim" role="switch" aria-checked="${!!S.limit.on}"><span>${te("a.speedLimiter")}${S.limit.kb ? ` (${esc(fmtSpeed(S.limit.kb * 1024))})` : ""}</span><i class="track" aria-hidden="true"></i></button>
+    ${qs ? `<div style="margin-top:6px">${qs}</div>` : ""}
+    <div class="acts" style="margin-top:18px"><button type="button" class="btn danger block" id="forget">${te("ph.unpair")}</button></div>`, sh => {
+    const lim = sh.querySelector("#lim");
+    lim.onclick = () => { const on = lim.getAttribute("aria-checked") !== "true"; act(() => api("limit", { on, kb: S.limit.kb }), t(on ? "ph.limiterOn" : "ph.limiterOff")); };
+    const pr = sh.querySelector("#prof");
+    if (pr) pr.onchange = () => act(async () => noError(await api("profile", { id: pr.value })), th("profile.switched", { name: nm(pr.selectedOptions[0].textContent) }));
+    sh.querySelectorAll("[data-q]").forEach(b => b.onclick = () => b.dataset.run === "1" ? act(async () => noError(await api("queue", { action: "stop", id: b.dataset.q })), "") : startQueue(b.dataset.q, false));
+    sh.querySelector("#forget").onclick = async () => {
+      closeSheet();
+      try { await api("unpair", {}); } catch {} // the computer forgets this phone's key too
+      store.set(""); key = "";
+      unpaired(t("ph.unpaired", { path: phPath() }));
+    };
+  });
+}
+
+$("#tabs").onclick = e => { const b = e.target.closest("[data-t]"); if (!b) return; tab = b.dataset.t; try { sessionStorage.setItem("zl-tab", tab); } catch {} render(); };
+$("#list").onclick = e => { const c = e.target.closest("[data-id]"); if (!c) return; const d = S.downloads.find(x => x.id === c.dataset.id); if (d) itemSheet(d); };
+$("#add").onclick = addSheet;
+$("#menu").onclick = menuSheet;
+
+// ---- pairing
+function showPair(msg) {
+  clearTimeout(poll); fresh++; waiting++; // (an answer still on its way is dropped)
+  closeSheet();
+  $("#app").hidden = true; $("#await").hidden = true; $("#pair").hidden = false;
+  const m = $("#pairmsg"); m.textContent = msg || ""; m.className = "msg" + (msg ? " bad" : "");
+  $("#pairtitle").focus({ preventScroll: true });
+}
+function unpaired(why) { // while in use
+  store.set(""); key = "";
+  showPair(why === "not paired" ? t("ph.notPaired", { path: phPath() }) : why);
+}
+// showAwait: the computer is asking whether to let this phone in (or, late, hasn't answered)
+function showAwait(late) {
+  clearTimeout(poll); fresh++;
+  closeSheet();
+  $("#app").hidden = true; $("#pair").hidden = true; $("#await").hidden = false;
+  $("#awaitbody").innerHTML = late ? te("ph.askLate") : ht("ph.waitBody", { name: nm(phoneName()), allow: t("pair.allow") });
+  $("#awaitspin").hidden = late; $("#awaitagain").hidden = !late;
+  $("#awaittitle").focus({ preventScroll: true });
+}
+$("#awaitagain").onclick = () => start(key, "saved");
+$("#awaitcancel").onclick = async () => {
+  waiting++;
+  try { await api("unpair", {}); } catch {} // the computer forgets the code too
+  store.set(""); key = "";
+  showPair("");
+};
+let waiting = 0; // counts the tries to connect: a newer one, or giving up, ends an older one still waiting
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function start(code, how) { // how: "typed", "link" or "saved"
+  key = normCode(code);
+  const me = ++waiting, until = Date.now() + 110000;
+  let asked = false; // the waiting screen is up
+  for (;;) {
+    let r = null;
+    try {
+      r = await api("hello", { name: phoneName() });
+    } catch (e) {
+      if (me !== waiting) return false;
+      if (e instanceof AuthError) {
+        store.set(""); key = "";
+        showPair(e.message !== "not paired" ? e.message : how === "saved" ? t("ph.notPaired", { path: phPath() }) : t("ph.badCode", { path: phPath() }));
+        return false;
+      }
+      $("#offline").hidden = false; // can't reach the computer right now: keep trying
+    }
+    if (me !== waiting) return false;
+    if (r && r.denied) { store.set(""); key = ""; showPair(t("ph.denied", { path: phPath() })); return false; }
+    if (!r || !r.wait) break;
+    store.set(key); // (a reload then carries on waiting)
+    if (Date.now() > until) { showAwait(true); return false; }
+    if (!asked) { asked = true; showAwait(false); }
+    await sleep(2000);
+  }
+  store.set(key);
+  $("#pair").hidden = $("#await").hidden = true; $("#app").hidden = false;
+  refresh();
+  return true;
+}
+$("#pairform").onsubmit = async e => {
+  e.preventDefault();
+  const v = normCode($("#code").value), m = $("#pairmsg");
+  if (v.length !== 16) { m.textContent = t("ph.codeLen"); m.className = "msg bad"; return; }
+  $("#pairbtn").disabled = true; m.textContent = t("ph.pairing"); m.className = "msg";
+  await start(v, "typed");
+  $("#pairbtn").disabled = false;
+};
+$("#code").oninput = e => { const v = normCode(e.target.value).slice(0, 16); e.target.value = v.replace(/(.{4})(?=.)/g, "$1-"); };
+
+// words fills in the page's own text, which the markup leaves empty
+(function words() {
+  $("#pairtitle").textContent = t("ph.pairTitle"); $("#pairintro").textContent = t("ph.pairIntro");
+  $("#code").setAttribute("aria-label", t("ph.codeAria")); $("#pairbtn").textContent = t("ph.pairBtn");
+  $("#step1").textContent = t("ph.step1", { path: phPath() });
+  $("#step2").innerHTML = ht("ph.step2", { add: t("o.phAdd") });
+  $("#step3").textContent = t("ph.step3");
+  $("#awaittitle").textContent = t("ph.waitTitle"); $("#awaitagain").textContent = t("a.tryAgain"); $("#awaitcancel").textContent = t("btn.cancel");
+  $("#menu").setAttribute("aria-label", t("ph.more")); $("#tabs").setAttribute("aria-label", t("ph.show"));
+  $("#offline").textContent = t("ph.offline"); $("#powercancel").textContent = t("btn.cancel");
+  $("#add").setAttribute("aria-label", t("a.addLink"));
+})();
+
+(function boot() {
+  const frag = new URLSearchParams(location.hash.slice(1)).get("k");
+  if (frag) history.replaceState(null, "", location.pathname); // keep the code out of the address bar and history
+  const saved = store.get();
+  if (frag) start(frag, "link"); else if (saved) start(saved, "saved"); else showPair("");
+})();
+</script>
+</body>
+</html>

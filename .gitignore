@@ -1,0 +1,19 @@
+# build output (tools/package.sh)
+/dist/
+/pkg/
+/zipline
+/zipline.exe
+/Zipline.exe
+*.test
+*.test.exe
+
+# never commit signing keys or store credentials
+*.pem
+*.p12
+*.pfx
+.env
+
+# local tools
+__pycache__/
+*.pyc
+.DS_Store
