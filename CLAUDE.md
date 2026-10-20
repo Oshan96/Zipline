@@ -8,7 +8,7 @@ Zipline is a standalone download manager in the style of IDM. It's one Go progra
 - `internal/<name>/`: code that stands on its own, without the download manager (`bencode`, `filename`, `httpauth`, `pac`, `psl`, `qr`, `quickxor`, `sitemap`, `utp`). Each package has its own tests. New code that needs nothing from `Manager`, `Download` or the settings goes in a package here.
 - `web/`: the window and the phone page; `web/web.go` embeds them for the program.
 - `extension/`: the browser extension. `assets/`: the icon and the docs' screenshots. `docs/`: the user guide, development and release docs.
-- `packaging/`: `package.sh`, the Windows installer (`windows/`), the macOS disk image (`macos/`) and the `.deb` (`linux/`). `tools/`: contrast check, browser tests, screenshots.
+- `packaging/`: `package.sh`, the Windows installer (`windows/`), the macOS disk image (`macos/`) and the `.deb` and `.rpm` (`linux/`). `tools/`: contrast check, browser tests, screenshots.
 
 ## Ground rules
 
@@ -21,7 +21,7 @@ Zipline is a standalone download manager in the style of IDM. It's one Go progra
   - J4: a macOS menu-bar presence, signing and notarizing.
   - J5: notifications on every OS.
   - J6: start at login and a clean shutdown.
-  - J9: updates and package-manager listings (the Windows installer, the macOS disk image and the `.deb` are done).
+  - J9: updates and package-manager listings (the Windows installer, the macOS disk image, the `.deb` and the `.rpm` are done).
   - J10: a complete command line.
   - J11: honest file associations, and selecting the file in "Show in folder" on Linux.
 
@@ -75,7 +75,7 @@ go test -race ./...              # about 8 minutes
 
 ## Packaging and releases
 
-- `packaging/package.sh [version]` builds every platform into `pkg/`: the portable packages, the source, the Windows installer (`packaging/windows/installer.nsi`, NSIS: per-user, no administrator prompt, picks the x64 or Arm64 build) and the `.deb` (`packaging/linux/`). It needs Python with Pillow, `zip`, `makensis` and `dpkg-deb`. Every package carries the extensions and `docs/user-guide.md` as `USER-GUIDE.md`.
+- `packaging/package.sh [version]` builds every platform into `pkg/`: the portable packages, the source, the Windows installer (`packaging/windows/installer.nsi`, NSIS: per-user, no administrator prompt, picks the x64 or Arm64 build), the `.deb` and the `.rpm` (`packaging/linux/`). It needs Python with Pillow, `zip`, `makensis`, `dpkg-deb` and `rpmbuild`. Every package carries the extensions, `docs/user-guide.md` as `USER-GUIDE.md` and the `LICENSE` (MIT).
 - `packaging/macos/make-dmg.sh` turns the two macOS zips into one universal `Zipline-macOS.dmg`. It needs macOS, so the workflow runs it on a macOS runner.
 - The installer is a 32-bit NSIS program. 64-bit-only Wine can't run it; to try it under Wine, build it with `ZL_NSIS_TARGET=amd64-unicode`. Its uninstaller runs `Zipline.exe --unregister` (`unregister_windows.go`) to undo this copy's registry entries.
 - `python3 packaging/windows/mksyso.py assets/icon.ico cmd/zipline` regenerates the Windows icon resource (`rsrc_windows_*.syso`).

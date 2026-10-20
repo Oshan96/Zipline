@@ -109,6 +109,7 @@ Section "Zipline" SecApp
     File "/oname=Zipline.exe" "${WIN}/Zipline.exe"
   ${EndIf}
   File "${WIN}/USER-GUIDE.md"
+  File "${WIN}/LICENSE"
   Delete "$INSTDIR\README.md" ; (1.0.0 put the guide there)
   File "${WIN}/zipline-firefox.xpi"
   RMDir /r "$INSTDIR\extension" ; (what an older version had there goes)
@@ -142,6 +143,7 @@ Section "Uninstall"
   ExecWait '"$INSTDIR\Zipline.exe" --unregister' ; (magnet links, .torrent files, the browser extension's link)
   Delete "$INSTDIR\Zipline.exe"
   Delete "$INSTDIR\USER-GUIDE.md"
+  Delete "$INSTDIR\LICENSE"
   Delete "$INSTDIR\README.md"
   Delete "$INSTDIR\zipline-firefox.xpi"
   RMDir /r "$INSTDIR\extension"

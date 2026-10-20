@@ -29,6 +29,8 @@ A few ground rules keep Zipline easy to build and safe to run:
 
 [CLAUDE.md](CLAUDE.md) has the full set of conventions, including the lock order the download manager relies on.
 
+Zipline is [MIT-licensed](LICENSE): by sending a pull request, you agree that your contribution is licensed the same way.
+
 ## Releases
 
 Every merge to `main` is released as the next patch version (`v1.0.3` → `v1.0.4`). To start a new series, raise `appVersion` in `cmd/zipline/version.go` in your pull request. Label it `feature` or `bug` to sort it in the release notes. See [docs/releasing.md](docs/releasing.md).

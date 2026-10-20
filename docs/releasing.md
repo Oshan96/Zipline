@@ -36,10 +36,11 @@ The release notes start with a download table and list the pull requests merged 
 | `Zipline-macOS.dmg` | The macOS disk image: one app for Apple silicon and Intel |
 | `Zipline-macOS-apple-silicon.zip`, `Zipline-macOS-intel.zip` | `Zipline.app` for each kind of Mac |
 | `Zipline-Linux-x64.deb` | The Debian and Ubuntu package |
+| `Zipline-Linux-x64.rpm` | The Fedora and openSUSE package |
 | `Zipline-Linux-x64.tar.gz` | The Linux program on its own |
 | `Zipline-source.zip` | The source |
 
-Every package carries the browser extensions (`extension`, `extension-firefox`, `zipline-firefox.xpi`) and the [user guide](user-guide.md) as `USER-GUIDE.md`. The names have no version in them, so `https://github.com/Oshan96/Zipline/releases/latest/download/<file>` always points at the newest.
+Every package carries the browser extensions (`extension`, `extension-firefox`, `zipline-firefox.xpi`), the [user guide](user-guide.md) as `USER-GUIDE.md` and the `LICENSE`. The names have no version in them, so `https://github.com/Oshan96/Zipline/releases/latest/download/<file>` always points at the newest.
 
 ## Building the packages yourself
 
@@ -48,7 +49,7 @@ packaging/package.sh [version]        # everything into pkg/
 packaging/macos/make-dmg.sh           # on a Mac, afterwards: pkg/Zipline-macOS.dmg
 ```
 
-`package.sh` builds every platform, the portable packages, the source, the Windows installer (`packaging/windows/installer.nsi`) and the `.deb`. It needs Python with Pillow, `zip`, NSIS (`makensis`) for the Windows installer and `dpkg-deb` for the `.deb`; without NSIS or `dpkg-deb` it skips that installer. Without a version it uses `appVersion`.
+`package.sh` builds every platform, the portable packages, the source, the Windows installer (`packaging/windows/installer.nsi`), the `.deb` and the `.rpm` (`packaging/linux/`). It needs Python with Pillow, `zip`, NSIS (`makensis`) for the Windows installer, `dpkg-deb` for the `.deb` and `rpmbuild` for the `.rpm` (`apt install nsis rpm`); without one of those it skips that installer. Without a version it uses `appVersion`.
 
 - The Windows installer is a 32-bit NSIS program, which 64-bit-only Wine can't run; to try it under Wine, build it with `ZL_NSIS_TARGET=amd64-unicode packaging/package.sh`. Its uninstaller runs `Zipline.exe --unregister` (`cmd/zipline/unregister_windows.go`) to undo this copy's registry entries.
 - The disk image needs macOS (`lipo`, `codesign`, `hdiutil`), so the workflow makes it on a macOS runner from the two macOS zips. The app gets an ad-hoc signature; it isn't signed with a Developer ID or notarized yet.

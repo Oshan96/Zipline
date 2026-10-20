@@ -23,7 +23,7 @@ assets/               the icon (icon.svg, icon.ico) and the screenshots in the d
 packaging/            building the release packages and installers
   windows/            the NSIS installer, its artwork and the Windows icon resource
   macos/              the app bundle's Info.plist and the disk image
-  linux/              the .deb's control file and menu entry
+  linux/              the .deb's control file, the .rpm's spec and the menu entry
 tools/                checks and helpers: colour contrast, browser tests, screenshots
 docs/                 the user guide, this file and the release process
 .github/              the build-and-release workflow, issue and pull request templates

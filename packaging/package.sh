@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build every platform into pkg/: the portable packages, the installers that can be made on Linux (the
-# Windows Setup with NSIS, the .deb with dpkg-deb) and the source. The macOS disk image needs macOS:
-# packaging/macos/make-dmg.sh turns the two macOS packages into one.
+# Windows Setup with NSIS, the .deb with dpkg-deb, the .rpm with rpmbuild) and the source. The macOS disk
+# image needs macOS: packaging/macos/make-dmg.sh turns the two macOS packages into one.
 # Usage: packaging/package.sh [version]
 # The version (1.0, 1.0.3) goes into the app (-X main.appVersion), the extensions' manifests and the
 # installers. Without one, it's appVersion from cmd/zipline/version.go. Releases get theirs from
@@ -31,7 +31,7 @@ done
 # key's .pem file: it goes into the zip as key.pem (Chrome's older way of keeping an id on the first upload; see
 # docs/releasing.md).
 S=$(mktemp -d) && cp -r $X/chrome/. $S/ && python3 -c "import json,sys; m=json.load(open(sys.argv[1])); m.pop('key',None); json.dump(m,open(sys.argv[1],'w'),indent=2)" $S/manifest.json && { [ -z "${ZL_EXT_KEY:-}" ] || cp "$ZL_EXT_KEY" $S/key.pem; } && (cd $S && zip -qr - .) > $X/zipline-chrome-store.zip && rm -rf $S
-addext() { mkdir -p "$1/extension-firefox"; cp -r $X/chrome "$1/extension"; cp -r $X/firefox/. "$1/extension-firefox/"; cp $X/zipline-firefox.xpi "$1/"; cp docs/user-guide.md "$1/USER-GUIDE.md"; }
+addext() { mkdir -p "$1/extension-firefox"; cp -r $X/chrome "$1/extension"; cp -r $X/firefox/. "$1/extension-firefox/"; cp $X/zipline-firefox.xpi "$1/"; cp docs/user-guide.md "$1/USER-GUIDE.md"; cp LICENSE "$1/"; }
 for A in x64 arm64; do D=pkg/Zipline-Windows-$A; mkdir -p $D; cp dist/Zipline-windows-$A.exe $D/Zipline.exe; addext $D; (cd pkg && zip -qr Zipline-Windows-$A.zip Zipline-Windows-$A); done
 for A in apple-silicon intel; do D=pkg/Zipline-macOS-$A; APP=$D/Zipline.app/Contents; mkdir -p $APP/MacOS $APP/Resources; cp dist/zipline-macos-$A $APP/MacOS/zipline; cp pkg/zipline.icns $APP/Resources/; sed "s/@VERSION@/$V/g" packaging/macos/Info.plist > $APP/Info.plist; addext $D; (cd pkg && zip -qry Zipline-macOS-$A.zip Zipline-macOS-$A); done
 # the Windows installer, next to the portable zips (NSIS: apt install nsis)
@@ -43,26 +43,37 @@ else
   echo "makensis not found: no Windows installer this time (apt install nsis)" >&2
 fi
 D=pkg/Zipline-Linux-x64; mkdir -p $D; cp dist/zipline-linux-x64 $D/; addext $D; (cd pkg && tar czf Zipline-Linux-x64.tar.gz Zipline-Linux-x64)
-# the Linux installer (dpkg-deb): the program in /usr/bin, its menu entry and icons, and the extensions and the guide
-# in /usr/share, where the extension's folder stays put for "Load unpacked"
-if command -v dpkg-deb >/dev/null; then
-  R=$(mktemp -d)/zipline
-  install -Dm755 dist/zipline-linux-x64 $R/usr/bin/zipline
-  install -Dm644 packaging/linux/zipline.desktop $R/usr/share/applications/zipline.desktop
-  for P in 16 32 48 128 256; do install -Dm644 extension/icons/icon$P.png $R/usr/share/icons/hicolor/${P}x$P/apps/zipline.png; done
-  install -Dm644 assets/icon.svg $R/usr/share/icons/hicolor/scalable/apps/zipline.svg
-  mkdir -p $R/usr/share/zipline && cp -r $D/extension $D/extension-firefox $D/zipline-firefox.xpi $R/usr/share/zipline/
-  install -Dm644 docs/user-guide.md $R/usr/share/doc/zipline/USER-GUIDE.md
-  chmod -R u=rwX,go=rX $R/usr/share && mkdir -p $R/DEBIAN
-  sed -e "s/@VERSION@/$V/" -e "s/@SIZE@/$(du -sk $R/usr | cut -f1)/" packaging/linux/control > $R/DEBIAN/control
-  dpkg-deb --root-owner-group -Zxz --build $R pkg/Zipline-Linux-x64.deb >/dev/null
-  rm -rf "$(dirname $R)"
+# the Linux installers: the program in /usr/bin, its menu entry and icons, and the extensions and the guide in
+# /usr/share, where the extension's folder stays put for "Load unpacked". The .deb and the .rpm hold the same files.
+R=$(mktemp -d)/zipline
+install -Dm755 dist/zipline-linux-x64 $R/usr/bin/zipline
+install -Dm644 packaging/linux/zipline.desktop $R/usr/share/applications/zipline.desktop
+for P in 16 32 48 128 256; do install -Dm644 extension/icons/icon$P.png $R/usr/share/icons/hicolor/${P}x$P/apps/zipline.png; done
+install -Dm644 assets/icon.svg $R/usr/share/icons/hicolor/scalable/apps/zipline.svg
+mkdir -p $R/usr/share/zipline && cp -r $D/extension $D/extension-firefox $D/zipline-firefox.xpi $R/usr/share/zipline/
+install -Dm644 docs/user-guide.md $R/usr/share/doc/zipline/USER-GUIDE.md
+chmod -R u=rwX,go=rX $R/usr/share
+if command -v dpkg-deb >/dev/null; then # (Debian keeps the licence as the package's copyright file)
+  B=$(mktemp -d)/zipline && cp -a $R $B && install -Dm644 LICENSE $B/usr/share/doc/zipline/copyright && mkdir -p $B/DEBIAN
+  sed -e "s/@VERSION@/$V/" -e "s/@SIZE@/$(du -sk $B/usr | cut -f1)/" packaging/linux/control > $B/DEBIAN/control
+  dpkg-deb --root-owner-group -Zxz --build $B pkg/Zipline-Linux-x64.deb >/dev/null
+  rm -rf "$(dirname $B)"
 else
   echo "dpkg-deb not found: no .deb this time" >&2
 fi
+if command -v rpmbuild >/dev/null; then # (apt install rpm)
+  T=$(mktemp -d)
+  rpmbuild -bb --quiet --target x86_64 --define "_topdir $T" --define "zl_version $V" --define "stage $R" \
+    --define "license_file $PWD/LICENSE" packaging/linux/zipline.spec
+  cp $T/RPMS/x86_64/zipline-$V-1.x86_64.rpm pkg/Zipline-Linux-x64.rpm
+  rm -rf $T
+else
+  echo "rpmbuild not found: no .rpm this time (apt install rpm)" >&2
+fi
+rm -rf "$(dirname $R)"
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then # the source as committed
   git archive --format=zip --prefix=zipline/ -o pkg/Zipline-source.zip HEAD
 else
   N=$(basename "$PWD"); (cd .. && zip -qr "$N/pkg/Zipline-source.zip" "$N" -x "$N/dist/*" "$N/pkg/*" "$N/.git/*" "*.pem" "*/__pycache__/*")
 fi
-ls -la pkg/*.zip pkg/*.tar.gz; ls -la pkg/*.exe pkg/*.deb 2>/dev/null || true
+ls -la pkg/*.zip pkg/*.tar.gz; ls -la pkg/*.exe pkg/*.deb pkg/*.rpm 2>/dev/null || true

@@ -42,15 +42,16 @@ The app isn't signed with an Apple Developer ID or notarized yet, so the first t
 ### Linux (x64)
 
 - **Debian, Ubuntu and their relatives:** `sudo apt install ./Zipline-Linux-x64.deb`. Zipline appears in your apps menu, and `zipline` starts it from a terminal. The browser extension is in `/usr/share/zipline/extension` (for Firefox: `/usr/share/zipline/extension-firefox` and `zipline-firefox.xpi`). `sudo apt remove zipline` uninstalls it.
+- **Fedora, openSUSE and their relatives:** `sudo dnf install ./Zipline-Linux-x64.rpm` (on openSUSE, `sudo zypper install --allow-unsigned-rpm ./Zipline-Linux-x64.rpm`). It puts everything in the same places as the `.deb`, and `sudo dnf remove zipline` (or `sudo zypper remove zipline`) uninstalls it.
 - **Any distribution:** unpack `Zipline-Linux-x64.tar.gz`, then `chmod +x zipline-linux-x64 && ./zipline-linux-x64`.
 
-Install `secret-tool` (the `libsecret-tools` package on Debian and Ubuntu) so the key that protects saved passwords is kept in your desktop's password store (see [Security](#security)).
+Install `secret-tool` (the `libsecret-tools` package on Debian and Ubuntu, `libsecret` on Fedora) so the key that protects saved passwords is kept in your desktop's password store (see [Security](#security)).
 
 ### Uninstall
 
 - **Windows:** the installer's copy uninstalls from **Settings → Apps**. That removes the program, its shortcuts and its registrations for magnet links, `.torrent` files and the browser extension. It keeps the settings and download list unless you choose to remove them; files you downloaded are never touched. A portable copy is just its folder.
 - **macOS:** move Zipline from Applications to the Bin. Settings stay in `~/Library/Application Support/Zipline`.
-- **Linux:** `sudo apt remove zipline`, or delete the unpacked folder. Settings stay in `~/.config/Zipline`.
+- **Linux:** `sudo apt remove zipline` or `sudo dnf remove zipline`, or delete the unpacked folder. Settings stay in `~/.config/Zipline`.
 
 ## Getting started
 
@@ -407,7 +408,7 @@ Found a security problem? See the [security policy](https://github.com/Oshan96/Z
 - Several internet connections at once needs each connection to have its own address on this computer (Wi-Fi plus USB tethering or Ethernet, for example). A single download from a server that allows only one connection can't use more than one line. Routing was tested with several addresses on one machine, not yet on every combination of real adapters.
 - Polite mode measures the delay to the server it's downloading from. On some connections, such as busy mobile networks, the delay changes on its own, so polite mode may ease off a little when it doesn't need to. With several internet connections at once it slows each one's own connections; torrent peers that connect to you aren't slowed then.
 - Quotas count what Zipline itself moves (the bytes of files, pages and torrent traffic, not trackers or the DHT), not other apps, so set them a little under your plan's real allowance. A network is told apart by its router (the default gateway's address and hardware address), so a VPN, or a router that's replaced, counts as another network; with several internet connections at once, everything counts towards the network the computer's internet goes through.
-- The Linux `.deb` is for x64 Debian, Ubuntu and their relatives; other distributions use the tar.gz.
+- The Linux `.deb` and `.rpm` are for x64 computers; other distributions use the tar.gz.
 
 ## Troubleshooting
 

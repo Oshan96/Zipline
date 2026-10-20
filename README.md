@@ -13,6 +13,7 @@ One small app for Windows, macOS and Linux, with nothing else to install.
 [![Build and release](https://github.com/Oshan96/Zipline/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/Oshan96/Zipline/actions/workflows/release.yml)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-1a6cf0)](#download)
 [![Go](https://img.shields.io/badge/Go-standard%20library%20only-00add8)](docs/development.md)
+[![License: MIT](https://img.shields.io/badge/license-MIT-1a6cf0)](LICENSE)
 
 [**Download**](#download) · [**User guide**](docs/user-guide.md) · [**Browser extension**](docs/user-guide.md#browser-extension) · [**Build from source**](docs/development.md)
 
@@ -109,7 +110,7 @@ Get the newest version from the [releases page](https://github.com/Oshan96/Zipli
 |---|---|---|
 | **Windows** 10 and 11 | [Zipline-Windows-Setup.exe](https://github.com/Oshan96/Zipline/releases/latest/download/Zipline-Windows-Setup.exe)<br><sub>x64 and Arm64, no administrator rights needed</sub> | [x64](https://github.com/Oshan96/Zipline/releases/latest/download/Zipline-Windows-x64.zip) · [Arm64](https://github.com/Oshan96/Zipline/releases/latest/download/Zipline-Windows-arm64.zip) |
 | **macOS** 11 or later | [Zipline-macOS.dmg](https://github.com/Oshan96/Zipline/releases/latest/download/Zipline-macOS.dmg)<br><sub>Apple silicon and Intel</sub> | [Apple silicon](https://github.com/Oshan96/Zipline/releases/latest/download/Zipline-macOS-apple-silicon.zip) · [Intel](https://github.com/Oshan96/Zipline/releases/latest/download/Zipline-macOS-intel.zip) |
-| **Linux** x64 | [Zipline-Linux-x64.deb](https://github.com/Oshan96/Zipline/releases/latest/download/Zipline-Linux-x64.deb)<br><sub>Debian, Ubuntu and their relatives</sub> | [tar.gz](https://github.com/Oshan96/Zipline/releases/latest/download/Zipline-Linux-x64.tar.gz) |
+| **Linux** x64 | [Zipline-Linux-x64.deb](https://github.com/Oshan96/Zipline/releases/latest/download/Zipline-Linux-x64.deb)<br><sub>Debian, Ubuntu and their relatives</sub><br>[Zipline-Linux-x64.rpm](https://github.com/Oshan96/Zipline/releases/latest/download/Zipline-Linux-x64.rpm)<br><sub>Fedora, openSUSE and their relatives</sub> | [tar.gz](https://github.com/Oshan96/Zipline/releases/latest/download/Zipline-Linux-x64.tar.gz) |
 
 > [!NOTE]
 > Zipline isn't code-signed yet, so Windows SmartScreen and macOS Gatekeeper ask before running it the first time. The user guide's [Install](docs/user-guide.md#install) section shows how to let it run.
@@ -156,3 +157,7 @@ go run ./cmd/zipline
 ## Contributing
 
 Bug reports, ideas and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). Every merge to `main` is released automatically as a new version. For security problems, please follow the [security policy](SECURITY.md).
+
+## License
+
+Zipline is released under the [MIT License](LICENSE). It includes the [Public Suffix List](https://publicsuffix.org) (`internal/psl/psl.dat`), which is under the [Mozilla Public License 2.0](https://mozilla.org/MPL/2.0/).
