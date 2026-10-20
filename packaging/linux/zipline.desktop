@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Zipline
+GenericName=Download Manager
+Comment=Fast downloads over many connections, torrents and video streams
+Exec=zipline
+Icon=zipline
+Terminal=false
+StartupNotify=false
+Categories=Network;FileTransfer;
+Keywords=download;downloader;torrent;magnet;accelerator;

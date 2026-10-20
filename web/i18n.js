@@ -415,7 +415,7 @@ const MESSAGES = {
     "o.skipHint": "One site per line. Downloads from these sites always stay in the browser (sub-sites are included). You can still send a link from them on purpose with the key above or the right-click menu.",
     "o.expiredTitle": "Expired links", "o.refresh": "When a download link expires, get a fresh one from its page",
     "o.refreshHint": "Many sites give out links that only work for a while. The extension opens the page in a background tab for a moment, finds the same file and Zipline carries on where it stopped. Clicking the link again yourself works too: Zipline recognises the file instead of starting a new download.",
-    "o.extTitle": "Browser extension", "o.extBrowsers": "Chrome, Edge, Brave and Opera; Firefox is covered in the README.",
+    "o.extTitle": "Browser extension", "o.extBrowsers": "Chrome, Edge, Brave and Opera; Firefox is covered in the user guide.",
     "o.extStep1": "Open <code>chrome://extensions</code> (or <code>edge://extensions</code>).", "o.extStep2": "Turn on <b>Developer mode</b>.",
     "o.extStep3": "Click <b>Load unpacked</b> and choose the <code>extension</code> folder that came with Zipline.",
     "o.extHint": "The extension adds \"Download with Zipline\" to the right-click menu and passes cookies and referer so sign-in-protected files work. Taking over all browser downloads is off by default (switch it on above, or in the extension's menu). It reaches this app through the browser's native messaging link, which Zipline sets up each time it starts, or over <code>127.0.0.1:17890</code> once you allow it.",

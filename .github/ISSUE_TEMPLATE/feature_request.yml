@@ -1,0 +1,21 @@
+name: Feature request
+description: An idea for something Zipline could do.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The task or the problem, in your own words.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How could Zipline help?
+      description: What you'd like it to do. Other download managers that do it well are useful to mention.
+  - type: textarea
+    id: today
+    attributes:
+      label: What do you do today?
+      description: A workaround, another app, or nothing yet.
