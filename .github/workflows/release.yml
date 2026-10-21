@@ -114,7 +114,7 @@ jobs:
     name: macOS disk image
     needs: [version, package]
     runs-on: macos-latest
-    timeout-minutes: 15
+    timeout-minutes: 60 # (the image takes seconds; a macOS runner can take many minutes to free up)
     steps:
       - uses: actions/checkout@v6
       - uses: actions/download-artifact@v6
