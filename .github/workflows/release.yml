@@ -1,8 +1,12 @@
 # Every pull request into main is tested, then built into every package and installer with the version
-# its merge will release: the run's Artifacts hold them to try before merging, and its summary says what
-# the release will be. Every merge to main (any push to main) gets the same, then is published as a
-# GitHub release: the Windows installer and portable zips, the macOS disk image and zips, the Linux .deb,
-# .rpm and tar.gz, and the source.
+# its merge will release: the run's Artifacts hold them for a few days to try before merging, and its
+# summary says what the release will be. Every merge to main (any push to main) gets the same, then is
+# published as a GitHub release: the Windows installer and portable zips, the macOS disk image and zips,
+# the Linux .deb, .rpm and tar.gz, and the source.
+#
+# A release is put together as a draft (the jobs add their files to it as they finish) and published only
+# once the tests pass and every installer is there. So releasing doesn't depend on the account's artifact
+# storage, which is small for private repositories; only the pull requests' previews use it.
 #
 # Versions: appVersion in cmd/zipline/version.go holds the major and minor parts (1.0). Each release takes
 # the next patch number for them: v1.0.0, v1.0.1, … Raise appVersion (to 1.1, 2.0) in a pull request to
@@ -16,6 +20,11 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch: # (Actions → Build and release → Run workflow: release main again; on another branch, build only)
+    inputs:
+      rehearse:
+        description: Rehearse the release (a draft that gets every file and its notes, then is deleted)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -55,24 +64,60 @@ jobs:
   version:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: write # (to start the release as a draft)
     outputs:
       version: ${{ steps.pick.outputs.version }}
       released: ${{ steps.pick.outputs.released }}
+      publish: ${{ steps.pick.outputs.publish }}
+      draft: ${{ steps.pick.outputs.draft }}
+      tag: ${{ steps.pick.outputs.tag }}
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0 # (the tags, to find the next version)
       - name: Pick the version
         id: pick
+        env:
+          EVENT: ${{ github.event_name }}
+          REHEARSE: ${{ inputs.rehearse }}
         run: |
           version=$(packaging/next-version.sh)
           base=$(packaging/version.sh)
-          if [ "${{ github.event_name }}" != pull_request ] && done=$(git tag --points-at HEAD -l "v$base.*" | head -1) && [ -n "$done" ]; then
-            echo "::notice::This commit is already released as $done"
-            echo "released=true" >> "$GITHUB_OUTPUT"
+          released=false publish=false
+          if [ "$EVENT" != pull_request ] && [ "$GITHUB_REF" = refs/heads/main ]; then
+            if done=$(git tag --points-at HEAD -l "v$base.*" | head -1) && [ -n "$done" ]; then
+              echo "::notice::This commit is already released as $done"
+              released=true
+            else
+              publish=true
+            fi
           fi
-          echo "Version $version"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          tag=v$version draft=$publish
+          if [ "$REHEARSE" = true ]; then # (never a real release)
+            publish=false draft=true tag=v$version-rehearsal.$GITHUB_RUN_ID
+          fi
+          echo "Version $version (released: $released, publish: $publish, draft: $draft as $tag)"
+          {
+            echo "version=$version"
+            echo "released=$released"
+            echo "publish=$publish"
+            echo "draft=$draft"
+            echo "tag=$tag"
+          } >> "$GITHUB_OUTPUT"
+      - name: Start the release as a draft
+        if: steps.pick.outputs.draft == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.pick.outputs.tag }}
+          VERSION: ${{ steps.pick.outputs.version }}
+        run: |
+          # a draft left by an earlier run of this version that didn't finish goes first
+          if [ "$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null)" = true ]; then
+            gh release delete "$TAG" --yes
+          fi
+          gh release create "$TAG" --draft --target "$GITHUB_SHA" --title "Zipline $VERSION" --notes "Being built."
 
   package:
     name: Package
@@ -80,6 +125,10 @@ jobs:
     if: needs.version.outputs.released != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: write # (to add the files to the release being put together)
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
@@ -89,7 +138,7 @@ jobs:
       - name: Install the packaging tools
         run: sudo apt-get update -q && sudo apt-get install -y -q python3-pil zip nsis rpm
       - name: Build the packages and installers
-        run: bash packaging/package.sh "${{ needs.version.outputs.version }}"
+        run: bash packaging/package.sh "$VERSION"
       - name: Check that everything was built
         run: |
           for f in Zipline-Windows-Setup.exe Zipline-Windows-x64.zip Zipline-Windows-arm64.zip Zipline-macOS-apple-silicon.zip \
@@ -98,7 +147,18 @@ jobs:
           done
           dpkg-deb --info pkg/Zipline-Linux-x64.deb
           rpm -qip pkg/Zipline-Linux-x64.rpm
-      - uses: actions/upload-artifact@v6
+      - name: Add them to the release
+        if: needs.version.outputs.draft == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: gh release upload "$TAG" pkg/*.exe pkg/*.zip pkg/*.deb pkg/*.rpm pkg/*.tar.gz --clobber
+      - name: Keep them as the preview
+        id: preview
+        if: needs.version.outputs.draft != 'true'
+        continue-on-error: true # (a full artifact store mustn't fail the build)
+        uses: actions/upload-artifact@v6
         with:
           name: packages
           path: |
@@ -108,79 +168,101 @@ jobs:
             pkg/*.rpm
             pkg/*.tar.gz
           if-no-files-found: error
-          retention-days: 14
-
-  dmg:
-    name: macOS disk image
-    needs: [version, package]
-    runs-on: macos-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v6
-        with:
-          name: packages
-          path: pkg
-      - name: Make the disk image
-        run: bash packaging/macos/make-dmg.sh pkg
-      - uses: actions/upload-artifact@v6
-        with:
-          name: macos-disk-image
-          path: pkg/Zipline-macOS.dmg
-          if-no-files-found: error
-          retention-days: 14
-
-  summary:
-    name: Release preview (v${{ needs.version.outputs.version }})
-    needs: [version, package, dmg]
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/download-artifact@v6
-        with:
-          path: pkg
-          merge-multiple: true
+          retention-days: 3
       - name: Summarize
         env:
-          VERSION: ${{ needs.version.outputs.version }}
           EVENT: ${{ github.event_name }}
+          DRAFT: ${{ needs.version.outputs.draft }}
+          PREVIEW: ${{ steps.preview.outcome }}
+          TAG: ${{ needs.version.outputs.tag }}
         run: |
+          if [ "$PREVIEW" = failure ]; then
+            echo "::warning::The packages were built but couldn't be kept as artifacts (is the account's artifact storage full?)"
+          fi
           {
             if [ "$EVENT" = pull_request ]; then
               echo "### Merging this releases Zipline v$VERSION"
-              echo "(If another pull request merges first, this one takes the next number.) The packages below are in this run's Artifacts."
+              echo "If another pull request merges first, this one takes the next number. The packages below are in this run's Artifacts for 3 days, and the macOS disk image is made by the run's macOS job."
+            elif [ "$DRAFT" = true ]; then
+              echo "### Zipline v$VERSION ($TAG)"
             else
-              echo "### Zipline v$VERSION"
+              echo "### Zipline v$VERSION (a build: only main is released)"
             fi
             echo
             echo "| File | Size |"
             echo "|---|---:|"
-            for f in pkg/*; do echo "| $(basename "$f") | $(du -h "$f" | cut -f1) |"; done
+            for f in pkg/*.exe pkg/*.zip pkg/*.deb pkg/*.rpm pkg/*.tar.gz; do echo "| $(basename "$f") | $(du -h "$f" | cut -f1) |"; done
           } >> "$GITHUB_STEP_SUMMARY"
+
+  dmg:
+    name: macOS disk image
+    needs: version
+    if: needs.version.outputs.released != 'true'
+    runs-on: macos-latest
+    timeout-minutes: 60 # (the build takes a minute or two; a macOS runner can take many minutes to free up)
+    permissions:
+      contents: write # (to add the disk image to the release being put together)
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Install Pillow (for the app's icon)
+        run: |
+          python3 -m venv "$RUNNER_TEMP/py"
+          "$RUNNER_TEMP/py/bin/pip" install -q pillow
+          echo "$RUNNER_TEMP/py/bin" >> "$GITHUB_PATH"
+      - name: Build the macOS packages and the disk image
+        run: |
+          ZL_PLATFORMS=macos bash packaging/package.sh "$VERSION"
+          bash packaging/macos/make-dmg.sh pkg
+      - name: Add it to the release
+        if: needs.version.outputs.draft == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: gh release upload "$TAG" pkg/Zipline-macOS.dmg --clobber
+      - name: Keep it as the preview
+        id: preview
+        if: needs.version.outputs.draft != 'true'
+        continue-on-error: true # (a full artifact store mustn't fail the build)
+        uses: actions/upload-artifact@v6
+        with:
+          name: macos-disk-image
+          path: pkg/Zipline-macOS.dmg
+          if-no-files-found: error
+          retention-days: 3
+      - name: Note a preview that couldn't be kept
+        if: steps.preview.outcome == 'failure'
+        run: echo "::warning::The disk image was built but couldn't be kept as an artifact (is the account's artifact storage full?)"
 
   release:
     needs: [version, test, package, dmg]
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.version.outputs.released != 'true'
+    if: needs.version.outputs.draft == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: write # (to tag the commit and publish the release)
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ needs.version.outputs.tag }}
+      VERSION: ${{ needs.version.outputs.version }}
     steps:
-      - uses: actions/download-artifact@v6
-        with:
-          path: pkg
-          merge-multiple: true
-      - name: Publish the release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          VERSION: ${{ needs.version.outputs.version }}
+      - name: Check the installers and write the notes
         run: |
-          for f in Zipline-Windows-Setup.exe Zipline-macOS.dmg Zipline-Linux-x64.deb Zipline-Linux-x64.rpm; do
-            test -s "pkg/$f" || { echo "::error::the installer $f is missing"; exit 1; }
+          have=$(gh release view "$TAG" --json assets --jq '.assets[].name')
+          for f in Zipline-Windows-Setup.exe Zipline-macOS.dmg Zipline-Linux-x64.deb Zipline-Linux-x64.rpm \
+                   Zipline-Windows-x64.zip Zipline-Windows-arm64.zip Zipline-macOS-apple-silicon.zip Zipline-macOS-intel.zip \
+                   Zipline-Linux-x64.tar.gz Zipline-source.zip; do
+            grep -qx "$f" <<< "$have" || { echo "::error::$f is missing from the release"; exit 1; }
           done
-          d="https://github.com/$GH_REPO/releases/download/v$VERSION"
-          guide="https://github.com/$GH_REPO/blob/v$VERSION/docs/user-guide.md"
+          d="https://github.com/$GH_REPO/releases/download/$TAG"
+          guide="https://github.com/$GH_REPO/blob/$TAG/docs/user-guide.md"
           cat > notes.md <<EOF
           ## Download
 
@@ -194,8 +276,12 @@ jobs:
           The browser extension comes with every download; the [user guide]($guide#browser-extension) shows how to add it.
 
           EOF
-          gh release create "v$VERSION" pkg/* \
-            --target "$GITHUB_SHA" \
-            --title "Zipline $VERSION" \
-            --notes-file notes.md \
-            --generate-notes
+          # what changed: the pull requests merged since the last release, grouped by label (.github/release.yml)
+          gh api "repos/$GH_REPO/releases/generate-notes" -f tag_name="$TAG" -f target_commitish="$GITHUB_SHA" --jq .body >> notes.md
+          gh release edit "$TAG" --notes-file notes.md
+      - name: Publish the release
+        if: needs.version.outputs.publish == 'true'
+        run: gh release edit "$TAG" --draft=false --latest
+      - name: Delete the rehearsal
+        if: always() && needs.version.outputs.publish != 'true'
+        run: gh release delete "$TAG" --yes
