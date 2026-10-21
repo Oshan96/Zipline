@@ -1,0 +1,37 @@
+name: Bug report
+description: Something in Zipline doesn't work as it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The link (if it's public), the settings that matter and what you clicked.
+      placeholder: |
+        1. Add the link …
+        2. …
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [Windows, macOS, Linux]
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: Help → Diagnostics in Zipline gives the version, settings (without passwords) and the recent log. Paste it here, and look it over for anything private first.
+      render: text
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and extension version
+      description: If the browser extension is involved.

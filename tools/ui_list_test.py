@@ -567,7 +567,7 @@ def main():
     if not binary:
         tmp = tempfile.mkdtemp(prefix="zl-bin-")
         binary = os.path.join(tmp, "zipline")
-        subprocess.run(["go", "build", "-o", binary, "."], cwd=ROOT, check=True)
+        subprocess.run(["go", "build", "-o", binary, "./cmd/zipline"], cwd=ROOT, check=True)
     app = App(binary)
     global SECRET
     SECRET = app.secret()

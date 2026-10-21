@@ -1,0 +1,9 @@
+# Scripts keep Unix line endings even in a Windows checkout, or bash and makensis can't run them.
+*.sh text eol=lf
+*.nsi text eol=lf
+*.py text eol=lf
+
+# Files git shouldn't diff or convert.
+*.syso binary
+*.ico binary
+*.png binary

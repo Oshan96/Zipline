@@ -1,10 +1,13 @@
-# Every merge to main (any push to main) is tested, built for every platform and published as a
-# GitHub release: the portable packages for Windows, macOS and Linux, the Windows installer and the
-# source. Pull requests into main get the same checks, without a release.
+# Every pull request into main is tested, then built into every package and installer with the version
+# its merge will release: the run's Artifacts hold them to try before merging, and its summary says what
+# the release will be. Every merge to main (any push to main) gets the same, then is published as a
+# GitHub release: the Windows installer and portable zips, the macOS disk image and zips, the Linux .deb,
+# .rpm and tar.gz, and the source.
 #
-# Versions: phone.go's appVersion holds the major and minor parts (1.0). Each release adds the next
-# patch number for them: v1.0.0, v1.0.1, … Raise appVersion (to 1.1, 2.0) and the next release is
-# v1.1.0. The full version goes into the app and the extensions (tools/package.sh).
+# Versions: appVersion in cmd/zipline/version.go holds the major and minor parts (1.0). Each release takes
+# the next patch number for them: v1.0.0, v1.0.1, … Raise appVersion (to 1.1, 2.0) in a pull request to
+# start a new series, and its merge releases v1.1.0. A series lower than one already released is refused
+# (packaging/next-version.sh). The full version goes into the app, the extensions and the installers.
 name: Build and release
 
 on:
@@ -12,7 +15,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-  workflow_dispatch: # (Actions → Build and release → Run workflow: release main again)
+  workflow_dispatch: # (Actions → Build and release → Run workflow: release main again; on another branch, build only)
 
 permissions:
   contents: read
@@ -26,67 +29,173 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: false # (no dependencies: the standard library only)
+      - name: Check the formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::not gofmt-formatted (run gofmt -w): $unformatted"
+            exit 1
+          fi
       - name: Vet for Windows, macOS and Linux
         run: |
-          GOOS=windows go vet .
-          GOOS=darwin go vet .
-          go vet .
-          go vet -tags zlfake .
+          GOOS=windows go vet ./...
+          GOOS=darwin go vet ./...
+          go vet ./...
+          go vet -tags zlfake ./...
       - name: Check the colours' contrast
         run: python3 tools/contrast.py
       - name: Test
-        run: go test -timeout 35m .
+        run: go test -timeout 35m ./...
 
-  release:
-    needs: test
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+  version:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      contents: write # (to tag the commit and publish the release)
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.pick.outputs.version }}
+      released: ${{ steps.pick.outputs.released }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0 # (the tags, to find the next version)
-      - uses: actions/setup-go@v5
+      - name: Pick the version
+        id: pick
+        run: |
+          version=$(packaging/next-version.sh)
+          base=$(packaging/version.sh)
+          if [ "${{ github.event_name }}" != pull_request ] && done=$(git tag --points-at HEAD -l "v$base.*" | head -1) && [ -n "$done" ]; then
+            echo "::notice::This commit is already released as $done"
+            echo "released=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Version $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  package:
+    name: Package
+    needs: version
+    if: needs.version.outputs.released != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: false
       - name: Install the packaging tools
-        run: sudo apt-get update -q && sudo apt-get install -y -q python3-pil zip nsis
-      - name: Pick the version
-        id: version
+        run: sudo apt-get update -q && sudo apt-get install -y -q python3-pil zip nsis rpm
+      - name: Build the packages and installers
+        run: bash packaging/package.sh "${{ needs.version.outputs.version }}"
+      - name: Check that everything was built
         run: |
-          base=$(grep -oE 'appVersion = "[0-9]+\.[0-9]+"' phone.go | grep -oE '[0-9]+\.[0-9]+' || true)
-          if [ -z "$base" ]; then
-            echo "::error file=phone.go::appVersion should hold the major and minor version only, like \"1.0\""
-            exit 1
-          fi
-          if done=$(git tag --points-at HEAD -l "v$base.*" | head -1) && [ -n "$done" ]; then
-            echo "::notice::This commit is already released as $done"
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          last=$(git tag -l "v$base.*" | sed -n "s/^v${base//./\\.}\.\([0-9][0-9]*\)$/\1/p" | sort -n | tail -1)
-          version="$base.$(( ${last:--1} + 1 ))"
-          echo "Releasing $version"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-      - name: Build the packages
-        if: steps.version.outputs.skip != 'true'
-        run: bash tools/package.sh "${{ steps.version.outputs.version }}"
+          for f in Zipline-Windows-Setup.exe Zipline-Windows-x64.zip Zipline-Windows-arm64.zip Zipline-macOS-apple-silicon.zip \
+                   Zipline-macOS-intel.zip Zipline-Linux-x64.deb Zipline-Linux-x64.rpm Zipline-Linux-x64.tar.gz Zipline-source.zip; do
+            test -s "pkg/$f" || { echo "::error::pkg/$f wasn't built"; exit 1; }
+          done
+          dpkg-deb --info pkg/Zipline-Linux-x64.deb
+          rpm -qip pkg/Zipline-Linux-x64.rpm
+      - uses: actions/upload-artifact@v6
+        with:
+          name: packages
+          path: |
+            pkg/*.exe
+            pkg/*.zip
+            pkg/*.deb
+            pkg/*.rpm
+            pkg/*.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
+  dmg:
+    name: macOS disk image
+    needs: [version, package]
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v6
+        with:
+          name: packages
+          path: pkg
+      - name: Make the disk image
+        run: bash packaging/macos/make-dmg.sh pkg
+      - uses: actions/upload-artifact@v6
+        with:
+          name: macos-disk-image
+          path: pkg/Zipline-macOS.dmg
+          if-no-files-found: error
+          retention-days: 14
+
+  summary:
+    name: Release preview (v${{ needs.version.outputs.version }})
+    needs: [version, package, dmg]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          path: pkg
+          merge-multiple: true
+      - name: Summarize
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          {
+            if [ "$EVENT" = pull_request ]; then
+              echo "### Merging this releases Zipline v$VERSION"
+              echo "(If another pull request merges first, this one takes the next number.) The packages below are in this run's Artifacts."
+            else
+              echo "### Zipline v$VERSION"
+            fi
+            echo
+            echo "| File | Size |"
+            echo "|---|---:|"
+            for f in pkg/*; do echo "| $(basename "$f") | $(du -h "$f" | cut -f1) |"; done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    needs: [version, test, package, dmg]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.version.outputs.released != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # (to tag the commit and publish the release)
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          path: pkg
+          merge-multiple: true
       - name: Publish the release
-        if: steps.version.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.version.outputs.version }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.version.outputs.version }}
         run: |
-          test -f pkg/Zipline-Windows-Setup.exe || { echo "::error::the Windows installer wasn't built"; exit 1; }
-          gh release create "v$VERSION" pkg/*.zip pkg/*.tar.gz pkg/Zipline-Windows-Setup.exe \
+          for f in Zipline-Windows-Setup.exe Zipline-macOS.dmg Zipline-Linux-x64.deb Zipline-Linux-x64.rpm; do
+            test -s "pkg/$f" || { echo "::error::the installer $f is missing"; exit 1; }
+          done
+          d="https://github.com/$GH_REPO/releases/download/v$VERSION"
+          guide="https://github.com/$GH_REPO/blob/v$VERSION/docs/user-guide.md"
+          cat > notes.md <<EOF
+          ## Download
+
+          | | Installer | Portable |
+          |---|---|---|
+          | **Windows** 10 and 11 | [Zipline-Windows-Setup.exe]($d/Zipline-Windows-Setup.exe) (x64 and Arm64) | [x64]($d/Zipline-Windows-x64.zip) · [Arm64]($d/Zipline-Windows-arm64.zip) |
+          | **macOS** 11 or later | [Zipline-macOS.dmg]($d/Zipline-macOS.dmg) (Apple silicon and Intel) | [Apple silicon]($d/Zipline-macOS-apple-silicon.zip) · [Intel]($d/Zipline-macOS-intel.zip) |
+          | **Linux** x64 | [.deb]($d/Zipline-Linux-x64.deb) (Debian, Ubuntu) · [.rpm]($d/Zipline-Linux-x64.rpm) (Fedora, openSUSE) | [tar.gz]($d/Zipline-Linux-x64.tar.gz) |
+
+          Zipline isn't code-signed yet, so Windows and macOS ask before running it the first time: see [Install]($guide#install).
+          The browser extension comes with every download; the [user guide]($guide#browser-extension) shows how to add it.
+
+          EOF
+          gh release create "v$VERSION" pkg/* \
             --target "$GITHUB_SHA" \
             --title "Zipline $VERSION" \
+            --notes-file notes.md \
             --generate-notes

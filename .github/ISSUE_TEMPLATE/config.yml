@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security problem
+    url: https://github.com/Oshan96/Zipline/security/policy
+    about: Please report security problems privately, not as an issue.
+  - name: User guide
+    url: https://github.com/Oshan96/Zipline/blob/main/docs/user-guide.md
+    about: How to install Zipline and use every feature, with troubleshooting.

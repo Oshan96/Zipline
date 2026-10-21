@@ -1,0 +1,16 @@
+Package: zipline
+Version: @VERSION@
+Architecture: amd64
+Maintainer: Oshan96 <28568277+Oshan96@users.noreply.github.com>
+Installed-Size: @SIZE@
+Section: net
+Priority: optional
+Homepage: https://github.com/Oshan96/Zipline
+Recommends: xdg-utils, libsecret-tools
+Suggests: chromium | google-chrome-stable | microsoft-edge-stable | brave-browser, ffmpeg, clamav
+Description: Fast download manager with multi-connection downloads
+ Zipline downloads files over many connections at once and resumes them
+ after a lost connection or a restart. It also handles torrents and magnet
+ links, HLS and DASH video streams, metalinks with mirrors, FTP, and share
+ links from cloud services. Its window opens in Chrome, Edge, Brave or
+ Chromium, and a browser extension hands it the browser's downloads.

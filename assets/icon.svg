@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Zipline</title>
+  <rect width="256" height="256" rx="64" fill="#1a6cf0"/>
+  <path d="M140 40 72 144h49l-12.5 71L183 112h-47z" fill="#fff"/>
+</svg>

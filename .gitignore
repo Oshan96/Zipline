@@ -1,9 +1,10 @@
-# build output (tools/package.sh)
+# build output (packaging/package.sh, and the Windows tests' zl.exe)
 /dist/
 /pkg/
 /zipline
 /zipline.exe
 /Zipline.exe
+/zl.exe
 *.test
 *.test.exe
 

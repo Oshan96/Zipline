@@ -1,0 +1,11 @@
+# How GitHub sorts a release's notes: the pull requests merged since the last release, grouped by label.
+changelog:
+  exclude:
+    labels: [skip-changelog]
+  categories:
+    - title: New features
+      labels: [feature, enhancement]
+    - title: Fixes
+      labels: [bug, fix]
+    - title: Other changes
+      labels: ["*"]
