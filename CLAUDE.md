@@ -76,11 +76,12 @@ go test -race ./...              # about 8 minutes
 ## Packaging and releases
 
 - `packaging/package.sh [version]` builds every platform into `pkg/`: the portable packages, the source, the Windows installer (`packaging/windows/installer.nsi`, NSIS: per-user, no administrator prompt, picks the x64 or Arm64 build), the `.deb` and the `.rpm` (`packaging/linux/`). It needs Python with Pillow, `zip`, `makensis`, `dpkg-deb` and `rpmbuild`. Every package carries the extensions, `docs/user-guide.md` as `USER-GUIDE.md` and the `LICENSE` (MIT).
-- `packaging/macos/make-dmg.sh` turns the two macOS zips into one universal `Zipline-macOS.dmg`. It needs macOS, so the workflow runs it on a macOS runner.
+- `packaging/macos/make-dmg.sh` turns the two macOS zips into one universal `Zipline-macOS.dmg`. It needs macOS, so the workflow's macOS job builds the macOS packages itself (`ZL_PLATFORMS=macos packaging/package.sh`) and runs it there.
 - The installer is a 32-bit NSIS program. 64-bit-only Wine can't run it; to try it under Wine, build it with `ZL_NSIS_TARGET=amd64-unicode`. Its uninstaller runs `Zipline.exe --unregister` (`unregister_windows.go`) to undo this copy's registry entries.
 - `python3 packaging/windows/mksyso.py assets/icon.ico cmd/zipline` regenerates the Windows icon resource (`rsrc_windows_*.syso`).
 - `.github/workflows/release.yml` runs on every pull request into `main` and every merge to `main`:
-  - Both: tests, then every package and installer built with the version the merge will release (`packaging/next-version.sh`), shown in the run's summary and kept as its artifacts.
-  - Merges: then the release, tagged `v<appVersion>.<n>` with the next free `n`, carrying every package and installer. A series lower than one already released is refused.
+  - Both: tests, then every package and installer built with the version the merge will release (`packaging/next-version.sh`), shown in the run's summary. Pull requests keep them as artifacts for 3 days (a full artifact store only warns).
+  - Merges: the files go straight into a draft release, tagged `v<appVersion>.<n>` with the next free `n`, published once the tests pass and every installer is there. No artifacts, so the account's small artifact storage can't block a release. A series lower than one already released is refused.
+  - A manual run with **Rehearse the release** goes through all of it into a draft that's deleted at the end.
   - Re-run it from the Actions tab to release `main` again.
 - `docs/releasing.md` describes all this for people; keep it in step.

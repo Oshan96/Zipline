@@ -17,13 +17,15 @@ The full version goes into the app (`-ldflags "-X main.appVersion=…"`), both e
 | | Pull request into `main` | Merge to `main` |
 |---|---|---|
 | Format, vet (Windows, macOS, Linux), contrast and tests | ✓ | ✓ |
-| Every package and installer, built with the version the merge will get | ✓ (the run's **Artifacts**) | ✓ |
+| Every package and installer, built with the version the merge will get | ✓ (the run's **Artifacts**, kept 3 days) | ✓ (into a draft release) |
 | A summary naming that version and listing the files | ✓ | ✓ |
-| Tag `v<version>` and publish the release | | ✓ |
+| Check that every installer is there, tag `v<version>` and publish the release | | ✓ |
 
 So each pull request shows the release its merge will make, and its packages can be tried before merging. If another pull request merges first, the next one takes the following number.
 
-A commit that's already released is skipped. To release `main` again (after a failed publish, say), run the workflow from the Actions tab: **Build and release → Run workflow**. On another branch, that builds the packages without releasing.
+A release is put together as a draft, which only people who can push see: the packaging jobs add their files to it as they finish, and it's published once the tests pass and every installer is there. Releasing doesn't use the account's artifact storage, which is small for private repositories (500 MB on GitHub Free, shared by every repository); only the pull requests' previews do, and when it's full they say so in a warning instead of failing.
+
+A commit that's already released is skipped. To release `main` again (after a failed run, say), run the workflow from the Actions tab: **Build and release → Run workflow**. On another branch, that builds the packages without releasing; tick **Rehearse the release** to also go through the release itself, into a draft that's deleted at the end.
 
 The release notes start with a download table and list the pull requests merged since the last release, grouped by label (`.github/release.yml`: `feature` or `enhancement`, `bug` or `fix`, everything else; `skip-changelog` leaves one out).
 
@@ -52,7 +54,8 @@ packaging/macos/make-dmg.sh           # on a Mac, afterwards: pkg/Zipline-macOS.
 `package.sh` builds every platform, the portable packages, the source, the Windows installer (`packaging/windows/installer.nsi`), the `.deb` and the `.rpm` (`packaging/linux/`). It needs Python with Pillow, `zip`, NSIS (`makensis`) for the Windows installer, `dpkg-deb` for the `.deb` and `rpmbuild` for the `.rpm` (`apt install nsis rpm`); without one of those it skips that installer. Without a version it uses `appVersion`.
 
 - The Windows installer is a 32-bit NSIS program, which 64-bit-only Wine can't run; to try it under Wine, build it with `ZL_NSIS_TARGET=amd64-unicode packaging/package.sh`. Its uninstaller runs `Zipline.exe --unregister` (`cmd/zipline/unregister_windows.go`) to undo this copy's registry entries.
-- The disk image needs macOS (`lipo`, `codesign`, `hdiutil`), so the workflow makes it on a macOS runner from the two macOS zips. The app gets an ad-hoc signature; it isn't signed with a Developer ID or notarized yet.
+- `ZL_PLATFORMS` builds only some platforms: `ZL_PLATFORMS="macos" packaging/package.sh` makes just the macOS packages.
+- The disk image needs macOS (`lipo`, `codesign`, `hdiutil`), so the workflow builds the macOS packages on a macOS runner (`ZL_PLATFORMS=macos`) and makes the image from them. The app gets an ad-hoc signature; it isn't signed with a Developer ID or notarized yet.
 
 ## The browser extension in the stores
 
