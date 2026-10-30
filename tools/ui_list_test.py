@@ -8,8 +8,8 @@ Builds the app (unless a binary is given), starts it on a private config folder 
 Chromium: Tab order, the menu bar, the context menu from the keyboard, the list as a grid with
 virtual scrolling, column headers, the sidebar, the global shortcuts, the mouse still working,
 the live updates (deltas, resync, segments for open progress windows, slower when hidden), and the
-"Download complete" window (one for downloads finishing in a row, none for a queue's). Exits non-zero
-when a test fails.
+"Download complete" window (one for downloads finishing in a row, none for a queue's) and Batch
+download's folder. Exits non-zero when a test fails.
 """
 import datetime, http.server, json, os, shutil, subprocess, sys, tempfile, threading, time, traceback, urllib.request
 from playwright.sync_api import sync_playwright
@@ -643,13 +643,41 @@ def test_complete_window(pg):
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_batch_folder(pg):
+    """Batch download's Save to folder: every link goes there. Left empty, it says where they'll go instead."""
+    fresh(pg)
+    srv, url = small_files()
+    tmp = tempfile.mkdtemp(prefix="zl-batch-")
+    ids = []
+    try:
+        ev(pg, "batchDialog()")
+        pg.wait_for_selector("dialog[open][data-key='batch'] #b-dir")
+        check(ev(pg, "document.querySelector('#b-dir').placeholder") != "", "the empty field says where the files go")
+        pg.fill("#b-list", f"{url}/photo-1.jpg\n{url}/photo-2.jpg")
+        pg.fill("#b-dir", tmp)
+        pg.uncheck("#b-go")
+        pg.click("dialog[open][data-key='batch'] .btn.primary")
+        t = time.time()
+        while time.time() - t < 10 and ev(pg, "!!document.querySelector('dialog[open][data-key=\"batch\"]')"):
+            time.sleep(0.1)
+        time.sleep(0.6)
+        got = ev(pg, f"S.downloads.filter(d => d.url.startsWith({json.dumps(url)})).map(d => [d.id, d.dir])")
+        ids = [g[0] for g in got]
+        check(len(got) == 2 and all(g[1] == tmp for g in got), f"both in the chosen folder: {got}")
+    finally:
+        close_dialogs(pg)
+        if ids:
+            api("action", {"action": "remove", "ids": ids})
+        srv.shutdown()
+        shutil.rmtree(tmp, ignore_errors=True)
+
 
 def api(path, body):
     req = urllib.request.Request(BASE + "/api/" + path, data=json.dumps(body).encode(), headers={"X-Token": SECRET, "Content-Type": "application/json"})
     return json.loads(NOPROXY.open(req).read())
 
 
-TESTS = [test_tab_order, test_menubar, test_context_menu, test_grid, test_headers, test_sidebar, test_shortcuts, test_mouse, test_responsive, test_live_updates, test_complete_window]
+TESTS = [test_tab_order, test_menubar, test_context_menu, test_grid, test_headers, test_sidebar, test_shortcuts, test_mouse, test_responsive, test_live_updates, test_complete_window, test_batch_folder]
 
 
 def main():

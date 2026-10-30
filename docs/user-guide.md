@@ -69,7 +69,7 @@ The window only opens from Zipline itself (its icon, its menu, or starting it ag
 
 - Click **Add link**, paste a link (Ctrl+V) or drag and drop one onto the window.
 - **Clipboard monitor:** copy a link to a file and Zipline offers to download it.
-- **Batch download:** a list of links, or a numbered pattern such as `img*.jpg` from 1 to 50, into any queue.
+- **Batch download:** a list of links, or a numbered pattern such as `img*.jpg` from 1 to 50, into any queue and any folder. Left empty, the folder is each file's category folder, as for a single download.
 - **From the browser:** the [browser extension](#browser-extension) adds **Download with Zipline** to links, images and videos, and can take over the browser's own downloads.
 - **Downloading starts while you choose where to save.** As soon as the Add dialog has read the file's details, Zipline starts fetching it. Pick another folder or name and the part already downloaded moves with it. Download later keeps it, ready to resume, and Cancel deletes it. You can switch this off in Options → General.
 

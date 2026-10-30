@@ -4154,6 +4154,7 @@ function batchDialog() {
         ${field(te("batch.pat"), `<input class="inp" id="b-pat" placeholder="https://example.com/photos/img*.jpg" spellcheck="false">`)}
         ${field(te("batch.range"), `<div class="row"><input class="inp num" id="b-from" type="number" value="1" aria-label="${te("batch.from")}"><span class="unit">${te("batch.toWord")}</span><input class="inp num" id="b-to" type="number" value="10" aria-label="${te("batch.to")}"><span class="unit">${te("batch.digits")}</span><input class="inp num" id="b-pad" type="number" value="1" min="1" max="8" aria-label="${te("batch.digitsAria")}"></div>`, { group: true, id: "b-range", hint: "", hintId: "b-prev" })}
       </div>
+      <div style="margin-top:12px">${field(te("f.saveTo"), pickControl("b-dir", "b-browse"))}</div>
       <div style="margin-top:12px">${headerFields("b-")}</div>
       <div style="margin-top:12px">${field(te("g.addTo"), `<div class="inline"><select class="inp fit" id="b-q">${S.queues.map(q => `<option value="${q.id}">${esc(q.name)}</option>`).join("")}</select>
         <label class="chk" style="margin:0"><input type="checkbox" id="b-go" checked> ${te("g.startNow")}</label></div>`, { group: true, id: "b-addto" })}</div>`,
@@ -4165,7 +4166,7 @@ function batchDialog() {
           fieldError(f, t(mode === "list" ? "batch.errList" : "batch.errPat"));
           f.focus(); return;
         }
-        const hd = readHeaders(el, "b-"), qid = $("#b-q", el).value;
+        const hd = readHeaders(el, "b-"), qid = $("#b-q", el).value, dir = $("#b-dir", el).value.trim();
         let n = 0;
         try {
           for (const u of urls) {
@@ -4173,7 +4174,7 @@ function batchDialog() {
             n++;
             if (added.has(qid + " " + u)) continue;
             if (btn.lastChild) btn.lastChild.nodeValue = t("batch.adding", { n, total: urls.length });
-            await api("add", { url: u, queueId: qid, headers: hd });
+            await api("add", { url: u, queueId: qid, headers: hd, dir }); // (no folder: each file's category folder, as usual)
             added.add(qid + " " + u);
           }
         } catch (e) { throw new Error(t("batch.fail", { done: n - 1, total: urls.length, error: errText(e).replace(/[.!?]*$/, ".") })); }
@@ -4195,6 +4196,9 @@ function batchDialog() {
   ["#b-pat", "#b-from", "#b-to", "#b-pad"].forEach(s => $(s, el).addEventListener("input", prev));
   wireTabs($(".tabs", el), tab => { mode = tab; $$(".pane", el).forEach(p => p.classList.toggle("active", p.dataset.p === tab)); prev(); });
   const tq = queueTarget(); if (tq) $("#b-q", el).value = tq;
+  // left empty, the files go where single downloads would: their category's folder (or the download folder)
+  $("#b-dir", el).placeholder = S.settings?.categoryFolders ? t("batch.dirPh") : S.settings?.downloadDir || "";
+  $("#b-browse", el).onclick = () => pickFolder($("#b-dir", el));
 }
 
 function aboutDialog() {
