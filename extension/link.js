@@ -1,8 +1,10 @@
 // Zipline link: how the extension reaches the app. Loaded before background.js (importScripts in Chrome, listed
 // first in Firefox's manifest); background.js's call() and ping() go through zlLink.call() and zlLink.ping().
 //  1. Native messaging first: the browser starts Zipline's own host program, which only this extension may talk to.
-//     The host finds the app through a file only this user can read, starts Zipline when it isn't running (for
-//     anything but a plain check-in) and passes on the app's wake-ups, so the extension checks in at once.
+//     The host finds the app through a file only this user can read, starts Zipline when it isn't running for
+//     something the user did (opts.start: Download with Zipline, Open Zipline…, never a check-in or background
+//     work) and passes on the app's wake-ups, so the extension checks in at once. It goes when Zipline isn't
+//     running, and isn't started again just to hear that: a check-in first looks whether Zipline's port answers.
 //  2. Without the host (Zipline sets it up each time it starts): HTTP on 127.0.0.1:17890, paired. Zipline's window
 //     asks once whether to let this browser in; every request is then signed with the key it gives, and a reply
 //     only counts with the app's proof, so a program that takes the port can't use or learn the key.
@@ -78,7 +80,8 @@
       portUp = false;
       if (!worked) { nativeOff = Date.now() + 60000; setState({ host: false }); } // no host here (yet): HTTP for a minute
       for (const w of [...waiting.values()]) w.lost(worked);
-      if (worked) setTimeout(native, 1000); // the host went away (Zipline updated, the browser restarted it): back soon
+      // (the host went: Zipline quit, or someone ended it. It's started again only when a call needs it, never
+      // straight away: that brought a Zipline process back each time it was ended in Task Manager)
     });
     return p;
   }
@@ -90,7 +93,7 @@
       const arm = ms => { clearTimeout(timer); timer = setTimeout(() => finish({ timeout: true }), ms); };
       waiting.set(id, { done: m => finish({ m }), lost: worked => finish({ lost: true, worked }), extend: () => arm(Math.max(timeout, 12000)) });
       arm(timeout);
-      try { p.postMessage({ id, path, body, timeout, start: !!start, ver: VERSION, minApp: MIN_APP }); } catch { finish({ lost: true, worked: portUp }); }
+      try { p.postMessage({ id, path, body, timeout, start: !!start, leave: true, ver: VERSION, minApp: MIN_APP }); } catch { finish({ lost: true, worked: portUp }); }
     });
   }
 
@@ -174,12 +177,23 @@
     await setState({ pair: r && r.state === "denied" ? "denied" : "needed" });
   }
 
+  // listening: whether anything answers on Zipline's port. With no host running, a call that may not start
+  // Zipline looks here first, so the browser doesn't start a Zipline process just to hear Zipline isn't running.
+  // (Something else on the port says yes: Zipline then took another port, and the host finds it.)
+  async function listening() {
+    const c = new AbortController(), t = setTimeout(() => c.abort(), 800);
+    try { await fetch(HTTP + "/", { method: "HEAD", signal: c.signal, credentials: "omit", cache: "no-store" }); return true; }
+    catch { return false; } finally { clearTimeout(t); }
+  }
+
   // call(path, body, timeout): the app's JSON reply, or null (not reachable, refused, timed out). opts.start: the
-  // native host may start Zipline for it (it always does for anything but "ping").
+  // native host may start Zipline for it; only for something the user did, never a check-in or background work.
   async function call(path, body, timeout = 800, opts = {}) {
-    const p = native();
+    if (!port && !opts.start && !(await listening())) { await setState({ up: false, via: "" }); return null; }
+    let p = native();
     if (p) {
-      const r = await viaNative(p, path, body, timeout, opts.start);
+      let r = await viaNative(p, path, body, timeout, opts.start);
+      if (r.lost && opts.start && (p = native())) r = await viaNative(p, path, body, timeout, true); // (the host was just going: a fresh one)
       if (r.m) {
         if (!r.m.status) { await setState({ up: false, via: "" }); return null; } // Zipline isn't running (or didn't start)
         await handshake(r.m.app, r.m.minExt, "native");

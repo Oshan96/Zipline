@@ -62,7 +62,7 @@ B.runtime.onMessage.addListener((msg, sender, reply) => {
       const host = String(msg.host || "").toLowerCase(), s = await settings();
       reply(host && !s.noButton.includes(host) ? await setPrefs({ noButton: [...s.noButton, host] }) : { ok: true });
     })(); return true;
-    case "show-app": call("show", { page: msg.page || "" }, 3000).then(r => reply({ ok: !!r })); return true; // "Open Zipline", Options → Browser
+    case "show-app": call("show", { page: msg.page || "" }, 3000, { start: true }).then(r => reply({ ok: !!r })); return true; // "Open Zipline", Options → Browser
   }
 });
 

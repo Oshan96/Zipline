@@ -60,9 +60,10 @@ type hostReq struct {
 	Path    string          `json:"path"`
 	Body    json.RawMessage `json:"body,omitempty"`
 	Timeout int             `json:"timeout,omitempty"` // ms
-	Start   bool            `json:"start,omitempty"`   // a check-in that may start Zipline
+	Start   bool            `json:"start,omitempty"`   // something the user did, which may start Zipline
 	Ver     string          `json:"ver,omitempty"`
 	MinApp  string          `json:"minApp,omitempty"`
+	Leave   bool            `json:"leave,omitempty"` // the extension connects again when it needs to: the host may go
 }
 
 type nativeHost struct {
@@ -72,7 +73,8 @@ type nativeHost struct {
 	origin   string       // the extension that started the host
 	launch   func() error // starts Zipline in the background (tests: their own app)
 	startFor time.Duration
-	waitSecs int // one long poll for wake-ups
+	waitSecs int           // one long poll for wake-ups
+	idleFor  time.Duration // without Zipline and without requests this long, the host goes (an extension that asked for it)
 
 	outMu    sync.Mutex
 	mu       sync.Mutex
@@ -80,7 +82,10 @@ type nativeHost struct {
 	launched time.Time
 	ver      string // what the extension said last
 	minApp   string
-	gen      int64 // the last wake-up seen (-1: none yet)
+	gen      int64     // the last wake-up seen (-1: none yet)
+	leave    bool      // the extension said it connects again when it needs the host
+	busy     int       // requests being answered
+	active   time.Time // the last request, or the last time Zipline answered
 }
 
 var errTooLarge = errors.New("the reply is too large for the browser")
@@ -94,32 +99,81 @@ func runNativeHostMain(origin string) int {
 		return 1
 	}
 	h := &nativeHost{in: os.Stdin, out: os.Stdout, dir: appDataDir(), origin: origin, startFor: 10 * time.Second, waitSecs: 25, gen: -1,
-		launch: func() error { return startFromHost(exec.Command(exe, "--nowindow")) }}
+		idleFor: 5 * time.Second, launch: func() error { return startFromHost(exec.Command(exe, "--nowindow")) }}
 	if h.run(context.Background()) != nil {
 		return 1
 	}
 	return 0
 }
 
-// run reads the extension's messages until the browser closes the pipe.
+// run reads the extension's messages until the browser closes the pipe, or until Zipline isn't running and
+// nothing is asked of the host (when the extension said it connects again when it needs to). A host that
+// stayed would be a Zipline process left in the background after Zipline was quit.
 func (h *nativeHost) run(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	h.mu.Lock()
+	h.active = time.Now()
+	h.mu.Unlock()
 	h.send(map[string]any{"type": "hello", "host": appVersion})
-	go h.wakeLoop(ctx)
-	for {
-		b, err := readNativeMsg(h.in)
-		if err == io.EOF {
-			return nil
+	leave := make(chan struct{}, 1)
+	go h.wakeLoop(ctx, leave)
+	msgs, errs := make(chan []byte), make(chan error, 1)
+	go func() {
+		for {
+			b, err := readNativeMsg(h.in)
+			if err != nil {
+				errs <- err
+				return
+			}
+			select {
+			case msgs <- b:
+			case <-ctx.Done():
+				return
+			}
 		}
-		if err != nil {
-			return err
-		}
+	}()
+	take := func(b []byte) {
 		var req hostReq
 		if json.Unmarshal(b, &req) != nil || req.ID == 0 {
-			continue
+			return
 		}
-		go h.handle(ctx, req)
+		h.mu.Lock()
+		h.busy++
+		h.active = time.Now()
+		h.mu.Unlock()
+		go func() {
+			defer func() {
+				h.mu.Lock()
+				h.busy--
+				h.active = time.Now()
+				h.mu.Unlock()
+			}()
+			h.handle(ctx, req)
+		}()
+	}
+	for {
+		select {
+		case b := <-msgs:
+			take(b)
+		case err := <-errs:
+			if err == io.EOF {
+				return nil
+			}
+			return err
+		case <-leave:
+			select {
+			case b := <-msgs: // (one came in just now: it's answered, and the host stays)
+				take(b)
+			default:
+				h.mu.Lock()
+				idle := h.busy == 0 && time.Since(h.active) >= h.idleFor // (the word may be older than a request since)
+				h.mu.Unlock()
+				if idle {
+					return nil
+				}
+			}
+		}
 	}
 }
 
@@ -167,8 +221,11 @@ func (h *nativeHost) handle(ctx context.Context, req hostReq) {
 	}
 	h.mu.Lock()
 	h.ver, h.minApp = clip(req.Ver, 20), clip(req.MinApp, 20)
+	h.leave = h.leave || req.Leave
 	h.mu.Unlock()
-	start := req.Start || req.Path != "ping"
+	// Zipline starts only for something the user did (Download with Zipline, Open Zipline…), never for the
+	// extension's own check-ins and background work: Zipline that was quit stays quit.
+	start := req.Start
 	a, err := h.appFor(req.ID, start)
 	if err != nil {
 		reply["status"], reply["error"] = 0, err.Error()
@@ -264,7 +321,9 @@ func (h *nativeHost) dropApp(a *appLink) {
 }
 
 // wakeLoop waits on the app for something the extension should come for, and tells it.
-func (h *nativeHost) wakeLoop(ctx context.Context) {
+// wakeLoop passes the app's wake-ups on, and says on leave when the host may go: Zipline isn't running,
+// nothing is being asked and nothing was for idleFor.
+func (h *nativeHost) wakeLoop(ctx context.Context, leave chan<- struct{}) {
 	pause := func(d time.Duration) {
 		select {
 		case <-ctx.Done():
@@ -278,7 +337,20 @@ func (h *nativeHost) wakeLoop(ctx context.Context) {
 		if a == nil {
 			found, err := findApp(h.dir)
 			if err != nil {
-				pause(2 * time.Second)
+				h.mu.Lock()
+				idle := h.leave && h.idleFor > 0 && h.busy == 0 && time.Since(h.active) >= h.idleFor
+				h.mu.Unlock()
+				if idle {
+					select {
+					case leave <- struct{}{}:
+					default:
+					}
+				}
+				every := 2 * time.Second
+				if h.idleFor > 0 {
+					every = min(every, h.idleFor/4) // (so the host goes soon after its time is up)
+				}
+				pause(every)
 				continue
 			}
 			h.mu.Lock()
@@ -305,6 +377,9 @@ func (h *nativeHost) wakeLoop(ctx context.Context) {
 			pause(2 * time.Second)
 			continue
 		}
+		h.mu.Lock()
+		h.active = time.Now() // (Zipline is there: once it quits, the host waits idleFor from here)
+		h.mu.Unlock()
 		h.gen = out.Gen // (a wake-up between two polls isn't lost)
 		if out.Wake {
 			h.send(map[string]any{"type": "wake"})
