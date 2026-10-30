@@ -1502,28 +1502,35 @@ function say(msg, urgent) {
     setTimeout(() => { el.textContent = q.length > 3 ? t("live.more", { first: q.slice(0, 2).join(". "), n: q.length - 2 }) : q.join(". "); }, 60);
   }, Math.max(400, L.last + L.gap - Date.now()));
 }
-// Downloads that finish together are announced and listed together.
+// Downloads that finish together are announced and listed together. Those that got no "Download complete"
+// window (it's switched off, or a queue ran them) share one quiet message.
 const FINISHED = { list: [], first: 0, timer: 0 };
-function downloadFinished(id) {
+function downloadFinished(id, shown) {
   const d = S.byId.get(id), f = FINISHED;
-  f.list.push({ id, name: d ? dname(d) : t("n.aDownload") });
+  f.list.push({ id, name: d ? dname(d) : t("n.aDownload"), shown });
   if (!f.first) f.first = Date.now();
   clearTimeout(f.timer);
   f.timer = setTimeout(() => {
     const l = f.list.splice(0); f.first = 0;
     const text = th("n.finished", { n: l.length, name: nm(l[0].name) });
     note(text); say(text);
-    // (without the "finished" window, a quiet message says so)
-    if (!(S.settings?.showCompleteDialog ?? true)) toast(text, { quiet: true, action: l.length === 1 ? { label: t("btn.show"), fn: () => showDownload(l[0].id) } : undefined });
+    const quiet = l.filter(x => !x.shown);
+    if (quiet.length) toast(quiet.length === l.length ? text : th("n.finished", { n: quiet.length, name: nm(quiet[0].name) }),
+      { quiet: true, action: { label: t("btn.show"), fn: () => showDownloads(quiet.map(x => x.id)) } });
   }, Date.now() - f.first > 4000 ? 0 : 1500);
 }
-// showDownload selects a download in the list (switching the view if it isn't in this one).
-function showDownload(id) {
-  if (!S.byId.has(id)) return;
-  if (!visible().some(d => d.id === id)) { S.filter = "all"; S.search = ""; $("#search").value = ""; saveUI(); }
-  S.selected = new Set([id]); S.anchor = id; LIST.focus = id;
+// showDownloads selects downloads in the list (switching the view if one isn't in this one) and scrolls to the first.
+function showDownload(id) { showDownloads([id]); }
+function showDownloads(ids) {
+  ids = ids.filter(id => S.byId.has(id));
+  if (!ids.length) return;
+  const vis = new Set(visible().map(d => d.id));
+  if (ids.some(id => !vis.has(id))) { S.filter = "all"; S.search = ""; $("#search").value = ""; saveUI(); }
+  S.selected = new Set(ids);
   renderAll();
-  showRow(listIds().indexOf(id)); // (rows exist only near the view: scroll by position, then draw)
+  const all = listIds(), at = Math.min(...ids.map(id => all.indexOf(id)));
+  S.anchor = LIST.focus = all[at];
+  showRow(at); // (rows exist only near the view: scroll by position, then draw)
   renderRows();
 }
 
@@ -2183,7 +2190,7 @@ function progressDialog(id) {
   if (S.progress.has(id)) { raiseDialog(S.progress.get(id)); return; }
   const d = S.byId.get(id); if (!d) return;
   if (d.torrent) return torrentProgress(id);
-  if (d.status === "completed") return completeDialog(id);
+  if (d.status === "completed") return completeDialog(id, true);
   // modeless: several of these can be open beside the list
   const el = dialog({
     title: th("pd.titleName", { name: nm(dname(d)) }), width: 580, modal: false, focus: "dialog",
@@ -2435,30 +2442,57 @@ function sumSourceText(c) {
 }
 
 // ---- Complete dialog
-function completeDialog(id) {
-  const d = S.byId.get(id); if (!d) return;
+// completeDialog says a download finished. There's one such window: a download that finishes while it's open
+// joins it, and it then lists them all, newest first, so downloads finishing one after another never stack up
+// windows. alone: show just this one (asked for by hand, from a finished download's menu).
+const DONE = { ids: [] };
+function completeDialog(id, alone) {
+  if (!S.byId.has(id)) return;
+  const open = $('dialog.dlg[data-key="done"]');
+  DONE.ids = open && !alone ? [id, ...DONE.ids.filter(x => x !== id)] : [id];
+  if (open) { drawDone(open); if (alone) raiseDialog(open); return; }
+  const listed = () => DONE.ids.filter(x => S.byId.has(x));
   // modeless: it pops up by itself when a download finishes, so it must not lock the page or grab Enter
-  dialog({
-    title: t("cd.title"), width: 520, key: "done-" + id, modal: false, focus: "dialog",
-    body: `<div style="display:flex;gap:12px;align-items:flex-start">
+  const el = dialog({
+    title: t("cd.title"), width: 520, key: "done", modal: false, focus: "dialog", body: "",
+    left: `<label class="chk" style="margin:0"><input type="checkbox" class="nomore"> ${te("cd.noMore")}</label>`,
+    buttons: [
+      { id: "cd-open", label: t("a.open"), primary: true, busy: t("btn.opening"), fn: el => {
+        const ids = listed();
+        if (ids.length === 1) api("action", { action: "open", ids }); else showDownloads(ids);
+        return finish(el);
+      } },
+      { label: t("a.openFolder"), busy: t("btn.opening"), fn: el => {
+        const dirs = new Set(); // (one folder window per folder, however many of the files went there)
+        api("action", { action: "folder", ids: listed().filter(x => { const dir = S.byId.get(x).dir; return !dirs.has(dir) && dirs.add(dir); }) });
+        return finish(el);
+      } },
+      { label: t("btn.close"), cancel: true, fn: el => finish(el) },
+    ],
+    onClose: () => { DONE.ids = []; },
+  });
+  drawDone(el);
+  async function finish(el) {
+    if ($(".nomore", el).checked) { const st = await api("settings"); st.showCompleteDialog = false; S.settings = await api("settings", st); }
+    el.close();
+  }
+}
+function drawDone(el) {
+  const ds = DONE.ids.map(id => S.byId.get(id)).filter(Boolean);
+  if (!ds.length) return el.close(); // (removed from the list meanwhile)
+  const d = ds[0], one = ds.length === 1;
+  put($(".t", el), one ? t("cd.title") : t("cd.titleMany", { n: ds.length }));
+  $(".dlg-b", el).innerHTML = one ? `<div style="display:flex;gap:12px;align-items:flex-start">
       <div style="transform:scale(2.2);transform-origin:top left;width:36px;height:36px;flex:none">${catIcon(d.category)}</div>
       <div class="kv" style="flex:1;min-width:0">
         <div>${te("fact.file")}</div><div title="${esc(d.name)}"><b>${esc(d.name)}</b></div>
         <div>${te("fact.size")}</div><div>${fmtSize(d.size)}</div>
         <div>${te("fact.savedTo")}</div><div title="${esc(d.dir)}">${esc(d.dir)}</div>
         <div>${te("fact.link")}</div><div title="${esc(d.url)}">${esc(d.url)}</div>
-      </div></div>`,
-    left: `<label class="chk" style="margin:0"><input type="checkbox" class="nomore"> ${te("cd.noMore")}</label>`,
-    buttons: [
-      { label: t("a.open"), primary: true, busy: t("btn.opening"), fn: el => { api("action", { action: "open", ids: [id] }); return finish(el); } },
-      { label: t("a.openFolder"), busy: t("btn.opening"), fn: el => { api("action", { action: "folder", ids: [id] }); return finish(el); } },
-      { label: t("btn.close"), cancel: true, fn: el => finish(el) },
-    ],
-  });
-  async function finish(el) {
-    if ($(".nomore", el).checked) { const st = await api("settings"); st.showCompleteDialog = false; S.settings = await api("settings", st); }
-    el.close();
-  }
+      </div></div>`
+    : `<div class="tf-list done-list" role="list">${ds.map(d => `<div class="tf-row" role="listitem">${catIcon(d.category)}<span class="tf-name" title="${esc(d.name)}">${esc(d.name)}</span><span class="tf-size">${fmtSize(d.size)}</span></div>`).join("")}</div>`;
+  const b = $("#cd-open", el);
+  if (!b.hasAttribute("aria-busy")) b.textContent = one ? t("a.open") : t("cd.showInList");
 }
 
 // ---- Move to another folder
@@ -4120,6 +4154,7 @@ function batchDialog() {
         ${field(te("batch.pat"), `<input class="inp" id="b-pat" placeholder="https://example.com/photos/img*.jpg" spellcheck="false">`)}
         ${field(te("batch.range"), `<div class="row"><input class="inp num" id="b-from" type="number" value="1" aria-label="${te("batch.from")}"><span class="unit">${te("batch.toWord")}</span><input class="inp num" id="b-to" type="number" value="10" aria-label="${te("batch.to")}"><span class="unit">${te("batch.digits")}</span><input class="inp num" id="b-pad" type="number" value="1" min="1" max="8" aria-label="${te("batch.digitsAria")}"></div>`, { group: true, id: "b-range", hint: "", hintId: "b-prev" })}
       </div>
+      <div style="margin-top:12px">${field(te("f.saveTo"), pickControl("b-dir", "b-browse"))}</div>
       <div style="margin-top:12px">${headerFields("b-")}</div>
       <div style="margin-top:12px">${field(te("g.addTo"), `<div class="inline"><select class="inp fit" id="b-q">${S.queues.map(q => `<option value="${q.id}">${esc(q.name)}</option>`).join("")}</select>
         <label class="chk" style="margin:0"><input type="checkbox" id="b-go" checked> ${te("g.startNow")}</label></div>`, { group: true, id: "b-addto" })}</div>`,
@@ -4131,7 +4166,7 @@ function batchDialog() {
           fieldError(f, t(mode === "list" ? "batch.errList" : "batch.errPat"));
           f.focus(); return;
         }
-        const hd = readHeaders(el, "b-"), qid = $("#b-q", el).value;
+        const hd = readHeaders(el, "b-"), qid = $("#b-q", el).value, dir = $("#b-dir", el).value.trim();
         let n = 0;
         try {
           for (const u of urls) {
@@ -4139,7 +4174,7 @@ function batchDialog() {
             n++;
             if (added.has(qid + " " + u)) continue;
             if (btn.lastChild) btn.lastChild.nodeValue = t("batch.adding", { n, total: urls.length });
-            await api("add", { url: u, queueId: qid, headers: hd });
+            await api("add", { url: u, queueId: qid, headers: hd, dir }); // (no folder: each file's category folder, as usual)
             added.add(qid + " " + u);
           }
         } catch (e) { throw new Error(t("batch.fail", { done: n - 1, total: urls.length, error: errText(e).replace(/[.!?]*$/, ".") })); }
@@ -4161,6 +4196,9 @@ function batchDialog() {
   ["#b-pat", "#b-from", "#b-to", "#b-pad"].forEach(s => $(s, el).addEventListener("input", prev));
   wireTabs($(".tabs", el), tab => { mode = tab; $$(".pane", el).forEach(p => p.classList.toggle("active", p.dataset.p === tab)); prev(); });
   const tq = queueTarget(); if (tq) $("#b-q", el).value = tq;
+  // left empty, the files go where single downloads would: their category's folder (or the download folder)
+  $("#b-dir", el).placeholder = S.settings?.categoryFolders ? t("batch.dirPh") : S.settings?.downloadDir || "";
+  $("#b-browse", el).onclick = () => pickFolder($("#b-dir", el));
 }
 
 function aboutDialog() {
@@ -4284,8 +4322,10 @@ function connect() {
       if (n.seq <= S.lastSeq) continue;
       if (n.kind === "complete") {
         const dl = S.progress.get(n.id); if (dl) dl.close();
-        downloadFinished(n.id);
-        if (S.settings?.showCompleteDialog ?? true) completeDialog(n.id);
+        // a queue's downloads (a batch, the site grabber, a schedule) are told together, not in a window each
+        const win = !n.queue && (S.settings?.showCompleteDialog ?? true);
+        downloadFinished(n.id, win);
+        if (win) completeDialog(n.id);
       } else if (n.kind === "queueDone" || n.kind === "syncDone" || n.kind === "grabDone") toast(n.text || t("n.queueDone"), 4000);
       else if (n.kind === "error") {
         const d = S.byId.get(n.id);

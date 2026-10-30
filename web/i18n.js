@@ -311,7 +311,7 @@ const MESSAGES = {
     "fi.sumList": "a checksum list", "fi.sumBase64": "a base64 checksum",
     "sum.you": "the one you gave", "sum.server": "sent by the server", "sum.metalink": "from the metalink", "sum.from": "from {name}",
     // ---- complete, properties
-    "cd.title": "Download complete", "cd.noMore": "Don't show this again", "fact.file": "File", "fact.savedTo": "Saved to", "btn.opening": "Opening…",
+    "cd.title": "Download complete", "cd.titleMany": "{n, plural, one {# download complete} other {# downloads complete}}", "cd.showInList": "Show in list", "cd.noMore": "Don't show this again", "fact.file": "File", "fact.savedTo": "Saved to", "btn.opening": "Opening…",
     "btn.copy": "Copy", "btn.saving": "Saving…",
     "pr.title": "Properties — {name}", "pr.needLink": "Enter the link of the file.",
     "pr.linkHint": "Link expired? Paste a fresh link for the same file and resume — progress is kept.",
@@ -625,7 +625,7 @@ const MESSAGES = {
     // ---- Batch, About, shortcuts, exit
     "batch.title": "Batch download", "batch.tabsAria": "How to list the links", "batch.tabList": "List of links", "batch.tabPat": "Numbered pattern",
     "batch.listPh": "One link per line", "batch.listAria": "Links, one link per line", "batch.pat": "Link with *", "batch.range": "From / to", "batch.from": "From", "batch.to": "To",
-    "batch.toWord": "to", "batch.digits": "digits", "batch.digitsAria": "Digits", "batch.add": "Add to queue", "batch.adding": "Adding {n} of {total}…",
+    "batch.toWord": "to", "batch.digits": "digits", "batch.digitsAria": "Digits", "batch.dirPh": "Each file in its category's folder", "batch.add": "Add to queue", "batch.adding": "Adding {n} of {total}…",
     "batch.errList": "Enter at least one http, https or ftp link, one per line.", "batch.errPat": "Use * where the number goes, in an http, https or ftp link, and a range of 5000 or fewer.",
     "batch.fail": "Added {done} of {total, plural, one {# link} other {# links}}, then it stopped: {error} Press the button again to add the rest.",
     "batch.done": "{n, plural, one {Added # link to {queue}} other {Added # links to {queue}}}",

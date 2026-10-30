@@ -196,6 +196,8 @@ type Download struct {
 	noSeed      bool // Stop sharing was pressed while its run was starting over: it doesn't share when it finishes (guarded by Manager.mu)
 
 	shareNote *ShareError // why a finished torrent wasn't shared when asked to (treshare.go; guarded by Manager.mu)
+
+	doneQueue string // the queue it finished in: told with that queue, not with a window and balloon of its own (guarded by Manager.mu)
 }
 
 func (d *Download) path() string     { return filepath.Join(d.Dir, d.FileName) }
@@ -723,6 +725,7 @@ func (m *Manager) run(ctx context.Context, cancel context.CancelFunc, d *Downloa
 		d.Error = ""
 		d.Finished = time.Now()
 		logf("%s finished: %d bytes (%s)", d.FileName, d.Size, d.URL)
+		d.doneQueue = d.Queue
 		if q := m.queueByID(d.Queue); q != nil && q.Sync {
 			d.Checked, d.SyncNote = time.Now(), "Up to date"
 		} else {
@@ -827,12 +830,19 @@ func certFailure(err error) bool {
 func (m *Manager) announceDone(d *Download) {
 	d.announce = false
 	m.notify("complete", d.ID)
+	// a queue's downloads (a batch of fifty, say) are told together, when the queue finishes: the window
+	// opens no "Download complete" for them, and the tray no balloon each
+	m.notices[len(m.notices)-1].Queue = d.doneQueue != ""
 	if c := d.Check; c != nil && c.State == "bad" {
 		m.notify("checkBad", d.ID, iso(d.FileName)+" is damaged: its "+algoNames[c.Algo]+" checksum doesn't match. Use Redownload to fetch it again.")
 		trayNotify("Downloaded file is damaged", d.FileName+": the checksum doesn't match", true)
 		m.playEvent("failed")
 	} else {
-		trayNotify("Download complete", d.FileName, false)
+		if d.doneQueue != "" {
+			m.qDone[d.doneQueue]++
+		} else {
+			trayDone(d.FileName)
+		}
 		m.playEvent("done")
 	}
 	if m.shouldScan(d) {
@@ -842,6 +852,27 @@ func (m *Manager) announceDone(d *Download) {
 	if d.Private {
 		m.forgetPrivate(d) // (the file stays)
 	}
+}
+
+// doneBalloon is the tray's balloon for downloads that finished together.
+func doneBalloon(names []string) (title, text string) {
+	if len(names) == 1 {
+		return "Download complete", names[0]
+	}
+	return fmt.Sprintf("%d downloads complete", len(names)), names[0] + " and " + plural(len(names)-1, "other")
+}
+
+// queueBalloon is the tray's balloon when a queue finishes: what it downloaded, and what it couldn't.
+func queueBalloon(queue string, done, failed int) (title, text string, warning bool) {
+	switch {
+	case failed == 0:
+		text = plural(done, "file") + " downloaded"
+	case done == 0:
+		text = plural(failed, "file") + " couldn't be downloaded"
+	default:
+		text = fmt.Sprintf("%s downloaded, %d couldn't be", plural(done, "file"), failed)
+	}
+	return queue + " finished", text, failed > 0
 }
 
 func (m *Manager) setStatus(d *Download, s string) {
