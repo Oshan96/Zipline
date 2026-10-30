@@ -152,10 +152,11 @@ type Prompt struct {
 }
 
 type Notice struct {
-	Seq  int64  `json:"seq"`
-	Kind string `json:"kind"`
-	ID   string `json:"id"`
-	Text string `json:"text,omitempty"`
+	Seq   int64  `json:"seq"`
+	Kind  string `json:"kind"`
+	ID    string `json:"id"`
+	Text  string `json:"text,omitempty"`
+	Queue bool   `json:"queue,omitempty"` // complete: it finished in a queue
 }
 
 type Manager struct {
@@ -169,6 +170,7 @@ type Manager struct {
 	qBySched   map[string]bool
 	qSyncing   map[string]bool
 	qLastStart map[string]time.Time
+	qDone      map[string]int // downloads each queue finished since it last finished itself (its tray balloon)
 	limiter    *Limiter
 	capCfg     atomic.Value // DataCap
 	usage      *usageMeter
@@ -224,7 +226,7 @@ func NewManager(dataDir string) *Manager {
 	makePrivateDir(dataDir)
 	tightenDataDir(dataDir)
 	m := &Manager{byID: map[string]*Download{}, dataDir: dataDir, limiter: &Limiter{}, quit: make(chan struct{}),
-		qRun: map[string]bool{}, qBySched: map[string]bool{}, qSyncing: map[string]bool{}, qLastStart: map[string]time.Time{},
+		qRun: map[string]bool{}, qBySched: map[string]bool{}, qSyncing: map[string]bool{}, qLastStart: map[string]time.Time{}, qDone: map[string]int{},
 		meterPaused: map[string]bool{}, politeLim: &Limiter{}, refresh: map[string]*refreshJob{}, torrents: map[string]*torrent{}, metaSessions: map[string]*metaSession{}}
 	m.vault = newVault(dataDir)
 	var notes []string
@@ -1032,6 +1034,10 @@ func (m *Manager) kick() {
 			} else {
 				m.notify("queueDone", q.ID, iso(q.Name)+" finished")
 			}
+			if n := m.qDone[q.ID]; n > 0 || failed > 0 { // (its downloads had no balloon each; a check that found nothing new needs none)
+				trayNotify(queueBalloon(q.Name, n, failed))
+			}
+			delete(m.qDone, q.ID)
 			m.playEvent("queue")
 			// the "when finished" action runs only when everything downloaded: a failure (a network
 			// outage at night, say) must not turn the computer off with work left undone

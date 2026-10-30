@@ -311,7 +311,7 @@ const MESSAGES = {
     "fi.sumList": "a checksum list", "fi.sumBase64": "a base64 checksum",
     "sum.you": "the one you gave", "sum.server": "sent by the server", "sum.metalink": "from the metalink", "sum.from": "from {name}",
     // ---- complete, properties
-    "cd.title": "Download complete", "cd.noMore": "Don't show this again", "fact.file": "File", "fact.savedTo": "Saved to", "btn.opening": "Opening…",
+    "cd.title": "Download complete", "cd.titleMany": "{n, plural, one {# download complete} other {# downloads complete}}", "cd.showInList": "Show in list", "cd.noMore": "Don't show this again", "fact.file": "File", "fact.savedTo": "Saved to", "btn.opening": "Opening…",
     "btn.copy": "Copy", "btn.saving": "Saving…",
     "pr.title": "Properties — {name}", "pr.needLink": "Enter the link of the file.",
     "pr.linkHint": "Link expired? Paste a fresh link for the same file and resume — progress is kept.",

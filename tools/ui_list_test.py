@@ -7,10 +7,11 @@ Builds the app (unless a binary is given), starts it on a private config folder 
 3,000 downloads (ZL_PORT, default 17991), and drives the window with Playwright for Python and
 Chromium: Tab order, the menu bar, the context menu from the keyboard, the list as a grid with
 virtual scrolling, column headers, the sidebar, the global shortcuts, the mouse still working,
-and the live updates (deltas, resync, segments for open progress windows, slower when hidden).
-Exits non-zero when a test fails.
+the live updates (deltas, resync, segments for open progress windows, slower when hidden), and the
+"Download complete" window (one for downloads finishing in a row, none for a queue's). Exits non-zero
+when a test fails.
 """
-import datetime, json, os, shutil, subprocess, sys, tempfile, time, traceback, urllib.request
+import datetime, http.server, json, os, shutil, subprocess, sys, tempfile, threading, time, traceback, urllib.request
 from playwright.sync_api import sync_playwright
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -18,6 +19,7 @@ PORT = int(os.environ.get("ZL_PORT", "17991"))
 BASE = f"http://127.0.0.1:{PORT}"
 N = 3000
 SECRET = ""
+NOPROXY = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # (127.0.0.1 never goes through a proxy)
 
 
 def make_list(datadir, n):
@@ -558,7 +560,96 @@ def test_live_updates(pg):
     check(ev(pg, "window.__fills") == 0, f"nothing changed, nothing redrawn ({ev(pg, 'window.__fills')})")
 
 
-TESTS = [test_tab_order, test_menubar, test_context_menu, test_grid, test_headers, test_sidebar, test_shortcuts, test_mouse, test_responsive, test_live_updates]
+class SmallFiles(http.server.BaseHTTPRequestHandler):
+    """Any path is a 20 kB file, so downloads finish at once."""
+    body = b"z" * 20_000
+
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(self.body)))
+        self.end_headers()
+        self.wfile.write(self.body)
+
+    def log_message(self, *a):
+        pass
+
+
+def small_files():
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), SmallFiles)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv, f"http://127.0.0.1:{srv.server_address[1]}"
+
+
+def test_complete_window(pg):
+    """Downloads finishing one after another share one "Download complete" window, and a queue's (a batch) open none."""
+    fresh(pg)
+    srv, url = small_files()
+    tmp = tempfile.mkdtemp(prefix="zl-done-")
+    ids = []
+    st0 = ev(pg, "S.settings.showCompleteDialog")
+    done_dialogs = "[...document.querySelectorAll('dialog[open][data-key^=\"done\"]')]"
+    try:
+        ev(pg, """async () => { const st = await api("settings"); st.showCompleteDialog = true;
+            st.queues = [...st.queues.filter(q => q.id !== "t-batch"), { id: "t-batch", name: "Batch test", maxConcurrent: 2 }];
+            S.settings = await api("settings", st); }""")
+
+        def all_done(these):
+            return ev(pg, f"{json.dumps(these)}.every(id => (S.byId.get(id) || {{}}).status === 'completed')")
+
+        def wait(cond, secs=15):
+            t = time.time()
+            while time.time() - t < secs and not cond():
+                time.sleep(0.1)
+            check(cond(), "timed out")
+
+        # three started by hand, finishing one after another: one window, then a list of all three
+        mine = []
+        for i in range(3):
+            mine.append(api("add", {"url": f"{url}/mine-{i}.bin", "dir": tmp, "start": True})["id"])
+            wait(lambda: all_done(mine))
+            time.sleep(0.4)
+        ids += mine
+        wait(lambda: ev(pg, done_dialogs + ".length") == 1)
+        time.sleep(0.5)
+        check(ev(pg, done_dialogs + ".length") == 1, f"one window, not {ev(pg, done_dialogs + '.length')}")
+        check(ev(pg, done_dialogs + "[0].querySelector('.t').textContent") == "3 downloads complete", "it lists all three")
+        check(ev(pg, done_dialogs + "[0].querySelectorAll('.tf-row').length") == 3, "three rows")
+        rows = ev(pg, "[...document.querySelectorAll('dialog[open][data-key=\"done\"] .tf-name')].map(e => e.textContent)")
+        check(rows == ["mine-2.bin", "mine-1.bin", "mine-0.bin"], f"newest first: {rows}")
+        pg.click("dialog[open][data-key='done'] #cd-open")  # Show in list
+        wait(lambda: ev(pg, done_dialogs + ".length") == 0, 3)
+        check(sorted(ev(pg, "[...S.selected]")) == sorted(mine), "Show in list selects them")
+        # a batch: four through a queue, no window at all, one quiet message for the lot
+        batch = [api("add", {"url": f"{url}/img{i}.jpg", "dir": tmp, "queueId": "t-batch"})["id"] for i in range(4)]
+        ids += batch
+        api("queue", {"action": "start", "id": "t-batch"})
+        wait(lambda: all_done(batch))
+        time.sleep(2.5)
+        check(ev(pg, done_dialogs + ".length") == 0, "a queue's downloads open no window")
+        toasts = ev(pg, "[...document.querySelectorAll('#toasts .toast .t')].map(e => e.textContent)")
+        check(any("downloads finished" in x for x in toasts), f"one message says they finished: {toasts}")
+        check(sum("img" in x or "finished" in x for x in toasts) <= 2, f"not one each: {toasts}")
+        # a finished download's own window, asked for by hand, shows just that one
+        ev(pg, f"progressDialog({json.dumps(mine[0])})")
+        time.sleep(0.3)
+        check(ev(pg, done_dialogs + "[0].querySelector('.t').textContent") == "Download complete", "one by hand: its own window")
+    finally:
+        ev(pg, "document.querySelectorAll('dialog[open][data-key^=\"done\"] .x').forEach(x => x.click())")
+        if ids:
+            api("action", {"action": "remove", "ids": ids})
+        ev(pg, f"""async () => {{ const st = await api("settings"); st.showCompleteDialog = {json.dumps(bool(st0))};
+            st.queues = st.queues.filter(q => q.id !== "t-batch"); S.settings = await api("settings", st); }}""")
+        srv.shutdown()
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+
+def api(path, body):
+    req = urllib.request.Request(BASE + "/api/" + path, data=json.dumps(body).encode(), headers={"X-Token": SECRET, "Content-Type": "application/json"})
+    return json.loads(NOPROXY.open(req).read())
+
+
+TESTS = [test_tab_order, test_menubar, test_context_menu, test_grid, test_headers, test_sidebar, test_shortcuts, test_mouse, test_responsive, test_live_updates, test_complete_window]
 
 
 def main():

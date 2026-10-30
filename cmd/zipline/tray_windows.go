@@ -138,6 +138,8 @@ var tray struct {
 	balloons   []balloon
 	taskbarMsg uint32
 	lastTip    string
+	done       []string    // finished downloads waiting to share one balloon (trayDone)
+	doneTimer  *time.Timer // shows that balloon
 }
 
 func trayAvailable() bool { return true }
@@ -443,6 +445,28 @@ func traySetEnabled(on bool) {
 }
 
 // trayNotify shows a balloon — only when no Zipline window is open (the window shows its own).
+// trayDone announces a download that finished on its own. Downloads that finish within a couple of
+// seconds of each other (several handed over by the browser, say) share one balloon: Windows keeps
+// each balloon as a notification of its own.
+func trayDone(name string) {
+	if atomic.LoadInt32(&sseClients) > 0 {
+		return // (the window says so itself)
+	}
+	tray.mu.Lock()
+	defer tray.mu.Unlock()
+	tray.done = append(tray.done, name)
+	if tray.doneTimer == nil {
+		tray.doneTimer = time.AfterFunc(2*time.Second, func() {
+			tray.mu.Lock()
+			title, text := doneBalloon(tray.done)
+			tray.done, tray.doneTimer = nil, nil
+			tray.balloons = append(tray.balloons, balloon{title, text, false})
+			tray.mu.Unlock()
+			trayWake()
+		})
+	}
+}
+
 func trayNotify(title, text string, warning bool) {
 	if atomic.LoadInt32(&sseClients) > 0 && !warning {
 		return
