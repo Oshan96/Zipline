@@ -29,8 +29,8 @@ async function settings() {
 }
 
 // call: the app's JSON reply, or null. (link.js: through the native host, or signed over HTTP once paired)
-async function call(path, body, timeout = 800) {
-  return zlLink.call(path, body, timeout);
+async function call(path, body, timeout = 800, opts = {}) { // opts.start: something the user did, which may start Zipline (link.js)
+  return zlLink.call(path, body, timeout, opts);
 }
 
 // The app sends its browser settings (hotkeys, sites to leave alone) with each ping, and the
@@ -73,7 +73,7 @@ pingNow();
 B.storage.local.get({ appCfg: null }).then(s => { appCfg = appCfg || s.appCfg; useAppList(appCfg); }).catch(() => {});
 B.alarms.onAlarm.addListener(a => { if (a.name === "zl-ping") pingNow(); });
 let lastCfgPing = 0;
-B.tabs.onActivated.addListener(() => { if (Date.now() - lastCfgPing > (appUp === false ? 120000 : 30000)) { lastCfgPing = Date.now(); pingNow(); } });
+B.tabs.onActivated.addListener(() => { if (Date.now() - lastCfgPing > 30000) { lastCfgPing = Date.now(); pingNow(); } }); // (cheap while Zipline is away: a look at its port)
 
 // siteListed: does the link's site match one of the patterns (example.com, *.example.com, example.com/path)?
 function siteListed(list, url) {
@@ -152,9 +152,10 @@ async function request(url, referer = "", filename = "", title = "", ctx = {}) {
   return { url, referer, filename, title, cookie: await cookieHeader(url, ctx), userAgent: navigator.userAgent, private: !!ctx.private };
 }
 
-// sendRes: {ok} or {ok: false, error}. The app can turn a link down (a protected site) with a message.
+// sendRes: {ok} or {ok: false, error}. The app can turn a link down (a protected site) with a message. The user
+// sent the link (Download with Zipline), so it may start Zipline.
 async function sendRes(url, referer = "", filename = "", title = "", ctx = {}) {
-  const r = await call("add", await request(url, referer, filename, title, ctx), 5000);
+  const r = await call("add", await request(url, referer, filename, title, ctx), 5000, { start: true });
   return r && r.ok !== false ? { ok: true } : { ok: false, error: (r && r.error) || "Couldn't reach Zipline" };
 }
 const send = async (...a) => (await sendRes(...a)).ok;
@@ -730,7 +731,7 @@ async function sendPageLinks(tab, frameId) {
   for (const r of results || []) for (const l of r.result || []) if (!seen.has(l.url)) { seen.add(l.url); links.push(l); }
   if (!links.length) return { ok: false, error: "No links found on this page" };
   const ctx = await ctxOfTab(tab); // (where the cookies are, for when the app asks)
-  const r = await call("links", { page: tab.url, title: tab.title || "", links, userAgent: navigator.userAgent, ctx, private: ctx.private }, 8000);
+  const r = await call("links", { page: tab.url, title: tab.title || "", links, userAgent: navigator.userAgent, ctx, private: ctx.private }, 8000, { start: true });
   if (r && r.ok && typeof waitJobs === "function") waitJobs(); // (the picker may ask for cookies soon)
   return r && r.ok ? { ok: true, count: links.length } : { ok: false, error: (r && r.error) || "Couldn't reach Zipline" };
 }

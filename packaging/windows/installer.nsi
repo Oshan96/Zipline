@@ -72,7 +72,9 @@ Function .onInit
 FunctionEnd
 
 ; QuitZipline asks a running Zipline to quit (zipline --quit), then waits until its exe can be
-; replaced. If it's still running after 10 seconds, it asks you to close it.
+; replaced. What still runs it after 6 seconds is ended: a Zipline that didn't quit, or the helper a
+; browser runs for the extension (Zipline.exe too, which kept the file in use). If it's still in use
+; after 12 seconds, it asks you to close it.
 !macro QUIT_ZIPLINE un
 Function ${un}QuitZipline
   IfFileExists "$INSTDIR\Zipline.exe" 0 done
@@ -83,7 +85,11 @@ Function ${un}QuitZipline
     FileOpen $0 "$INSTDIR\Zipline.exe" a
     IfErrors 0 free
     IntOp $1 $1 + 1
-    IntCmp $1 50 0 wait 0
+    IntCmp $1 30 0 ended ended
+    nsExec::Exec '"$SYSDIR\taskkill.exe" /F /IM Zipline.exe'
+    Pop $2
+  ended:
+    IntCmp $1 60 0 wait 0
     MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "Zipline is still running.$\n$\nClose it (Tasks > Exit Zipline), then click Retry." /SD IDCANCEL IDRETRY again
     Abort
   again:
@@ -139,8 +145,9 @@ Section "Desktop shortcut" SecDesktop
 SectionEnd
 
 Section "Uninstall"
-  Call un.QuitZipline
+  ; first, so a browser can't start Zipline's helper again while it's being removed
   ExecWait '"$INSTDIR\Zipline.exe" --unregister' ; (magnet links, .torrent files, the browser extension's link)
+  Call un.QuitZipline
   Delete "$INSTDIR\Zipline.exe"
   Delete "$INSTDIR\USER-GUIDE.md"
   Delete "$INSTDIR\LICENSE"

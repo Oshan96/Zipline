@@ -92,7 +92,8 @@ func startHost(t *testing.T, h *nativeHost) (*hostPipe, chan error) {
 }
 
 // The host relays the extension's requests to the app with the secret, starts Zipline when it isn't
-// running (not for a plain check-in), passes the app's wake-ups on, and refuses what isn't the extension's.
+// running only for something the user did (never for a check-in or background work), passes the app's
+// wake-ups on, and refuses what isn't the extension's.
 func TestNativeHostRelay(t *testing.T) {
 	m := newTestManager(t)
 	s := &Server{m: m, token: strings.Repeat("ab", 32)}
@@ -125,8 +126,17 @@ func TestNativeHostRelay(t *testing.T) {
 	if r := p.next(3*time.Second, byID(1)); r["status"] != 0.0 || r["error"] == nil || atomic.LoadInt32(&launches) != 0 {
 		t.Fatalf("ping while not running: %v (launches %d)", r, launches)
 	}
-	// a link does: "starting", then the answer
-	p.send(map[string]any{"id": 2, "path": "add", "body": map[string]any{"url": "https://x.example/a.zip", "title": "A"}, "timeout": 5000, "ver": "1.0.0", "minApp": "1.0"})
+	// nor does the extension's background work, which once brought back a Zipline that was quit (or ended
+	// in Task Manager) over and over
+	for i, path := range []string{"jobs", "refresh", "grab", "cookies", "settings", "add"} {
+		id := 40 + i
+		p.send(map[string]any{"id": id, "path": path, "body": map[string]any{}, "timeout": 2000})
+		if r := p.next(3*time.Second, byID(float64(id))); r["status"] != 0.0 || atomic.LoadInt32(&launches) != 0 {
+			t.Fatalf("%s while not running: %v (launches %d)", path, r, launches)
+		}
+	}
+	// a link the user sent does: "starting", then the answer
+	p.send(map[string]any{"id": 2, "path": "add", "body": map[string]any{"url": "https://x.example/a.zip", "title": "A"}, "timeout": 5000, "start": true, "ver": "1.0.0", "minApp": "1.0"})
 	if st := p.next(3*time.Second, func(m map[string]any) bool { return m["id"] == 2.0 && m["type"] == "starting" }); st == nil {
 		t.Fatal("no starting message")
 	}
@@ -185,10 +195,10 @@ func TestNativeHostRelay(t *testing.T) {
 	if len(jobs) != 1 {
 		t.Fatalf("the job was taken early: %v", jobs)
 	}
-	// Zipline quits and the next link starts it again
+	// Zipline quits and the next link the user sends starts it again
 	first := <-apps
 	first.Close()
-	p.send(map[string]any{"id": 30, "path": "add", "body": map[string]any{"url": "https://x.example/b.zip"}, "timeout": 5000})
+	p.send(map[string]any{"id": 30, "path": "add", "body": map[string]any{"url": "https://x.example/b.zip"}, "timeout": 5000, "start": true})
 	if r := p.next(8*time.Second, byID(30)); r["status"] != 200.0 || atomic.LoadInt32(&launches) != 2 {
 		t.Fatalf("add after Zipline quit: %v (launches %d)", r, launches)
 	}
@@ -258,4 +268,47 @@ func TestNativeHostWakesWhenZiplineStarts(t *testing.T) {
 	defer app.Close()
 	writeRunFile(dir, runInfo{Port: app.Listener.Addr().(*net.TCPAddr).Port, PID: os.Getpid(), Secret: s.token})
 	p.next(5*time.Second, func(m map[string]any) bool { return m["type"] == "wake" })
+}
+
+// Quitting Zipline left the browser's host running (a Zipline.exe in Task Manager), and ending it there only
+// had the extension start it again at once. Now the host goes when Zipline isn't running and nothing is
+// asked of it, for an extension that connects again when it needs to. An older one (no "leave") keeps it.
+func TestNativeHostLeavesWhenZiplineQuits(t *testing.T) {
+	s := &Server{m: newTestManager(t), token: strings.Repeat("ef", 32)}
+	for _, c := range []struct {
+		name  string
+		leave bool
+	}{{"current extension", true}, {"older extension", false}} {
+		t.Run(c.name, func(t *testing.T) {
+			dir := t.TempDir()
+			app := httptest.NewServer(s.routes())
+			writeRunFile(dir, runInfo{Port: app.Listener.Addr().(*net.TCPAddr).Port, PID: os.Getpid(), Version: appVersion, Secret: s.token})
+			p, done := startHost(t, &nativeHost{dir: dir, origin: firefoxExtID, startFor: time.Second, waitSecs: 1, gen: -1, idleFor: 300 * time.Millisecond,
+				launch: func() error { t.Error("the host started Zipline by itself"); return nil }})
+			p.send(map[string]any{"id": 1, "path": "ping", "leave": c.leave})
+			if r := p.next(3*time.Second, byID(1)); r["status"] != 200.0 {
+				t.Fatalf("ping: %v", r)
+			}
+			// while Zipline runs, the host stays (it passes the wake-ups on)
+			select {
+			case <-done:
+				t.Fatal("the host went while Zipline was running")
+			case <-time.After(time.Second):
+			}
+			app.Close() // Zipline quits (or is ended)
+			select {
+			case err := <-done:
+				if !c.leave {
+					t.Fatal("an older extension's host went: it would only be started again a second later")
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+			case <-time.After(3 * time.Second):
+				if c.leave {
+					t.Fatal("the host stayed after Zipline quit")
+				}
+			}
+		})
+	}
 }

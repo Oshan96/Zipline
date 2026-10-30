@@ -322,6 +322,16 @@ func TestExtensionIDAndManifests(t *testing.T) {
 	if !strings.Contains(string(bg), `importScripts("link.js")`) || strings.Contains(string(bg), "fetch(APP") {
 		t.Error("background.js should reach the app only through link.js")
 	}
+	// Zipline that was quit stays quit: the native host is told it may go, isn't started again the moment it
+	// goes (that brought a Zipline process back each time it was ended in Task Manager), and what the user
+	// does gets through to it with start
+	link, _ := os.ReadFile(repoPath("extension/link.js"))
+	if !strings.Contains(string(link), "leave: true") || strings.Contains(string(link), "setTimeout(native") {
+		t.Error("link.js should let the host go and open it again only when a call needs it")
+	}
+	if !strings.Contains(string(bg), "zlLink.call(path, body, timeout, opts)") {
+		t.Error("background.js's call() should pass opts (start) on to link.js")
+	}
 }
 
 // The window's new words are in the catalogue.

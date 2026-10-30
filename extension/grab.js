@@ -92,6 +92,6 @@ async function scanSite(tab) {
     const c = await cookieHeader(h === hostOf(tab.url) ? tab.url : `${u.protocol}//${h}/`, ctx);
     if (c) cookies[h] = c;
   }
-  const r = await call("scan", { page: tab.url, title: tab.title || "", cookies, userAgent: navigator.userAgent }, 8000);
+  const r = await call("scan", { page: tab.url, title: tab.title || "", cookies, userAgent: navigator.userAgent }, 8000, { start: true });
   return r && r.ok ? { ok: true } : { ok: false, error: (r && r.error) || "Couldn't reach Zipline" };
 }
