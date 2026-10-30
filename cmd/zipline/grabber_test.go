@@ -164,16 +164,23 @@ func TestGrabberProjectQueuesOnlyNewFiles(t *testing.T) {
 		}
 		time.Sleep(25 * time.Millisecond)
 	}
-	time.Sleep(100 * time.Millisecond)
-	m.mu.Lock()
-	added := m.list[before:]
+	// the run is "done" before its new files are queued, the project saved and the notice sent: wait for
+	// the notice (a slow disk on CI took over 100 ms to save)
+	var added []*Download
 	var text string
-	for _, n := range m.notices {
-		if n.Kind == "grabDone" {
-			text = n.Text
+	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(25 * time.Millisecond) {
+		m.mu.Lock()
+		added = m.list[before:]
+		for _, n := range m.notices {
+			if n.Kind == "grabDone" {
+				text = n.Text
+			}
+		}
+		m.mu.Unlock()
+		if text != "" || time.Now().After(deadline) {
+			break
 		}
 	}
-	m.mu.Unlock()
 	if len(added) != 1 || added[0].FileName != "new-report.pdf" {
 		t.Fatalf("expected only the new file to be queued, got %d", len(added))
 	}
