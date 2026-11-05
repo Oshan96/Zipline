@@ -198,7 +198,7 @@ const MESSAGES = {
     "fi.private": "From a private window: Zipline doesn't keep it in its list once it's finished. The file stays where you save it.",
     "fi.challenge": "The site wants to check you're a person before it sends the file. Open the link in your browser; once the download starts there, the extension hands it to Zipline.",
     "fi.readFail": "Couldn't read file info: {error}<br>You can still add it — Zipline will retry when the download starts.",
-    "fi.hlsType": "Video stream ({format})", "fi.hlsTypeMp4": "Video stream ({format}) · MP4 pieces",
+    "fi.hlsType": "Video stream ({format})", "fi.splitType": "Video: the picture and the sound come as separate files, combined into one", "fi.hlsTypeMp4": "Video stream ({format}) · MP4 pieces",
     "fi.hlsPieces": "{n} · fetched on up to {conns, plural, one {# connection} other {# connections}}",
     "fi.savedMerged": "MP4 <m>· the separate audio track is merged in, no quality loss</m>", "fi.savedTs": "MPEG-TS (.ts) <m>· plays in VLC</m>",
     "fi.savedMp4": "MP4", "fi.savedRepack": "MP4 <m>· repackaged when the download finishes, no quality loss</m>",

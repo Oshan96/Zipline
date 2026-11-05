@@ -233,6 +233,7 @@ func (s *Server) probe(w http.ResponseWriter, r *http.Request) {
 		Body    []byte     `json:"body"`
 		Known   *knownFile `json:"known"`
 		Private bool       `json:"private"`
+		Split   []string   `json:"split"` // a video whose picture and sound are separate files (split.go)
 	}
 	if readJSON(r, &req) != nil || req.URL == "" {
 		http.Error(w, "bad request", 400)
@@ -240,11 +241,11 @@ func (s *Server) probe(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
-	d := &Download{URL: strings.TrimSpace(req.URL), Headers: req.Headers}
+	d := &Download{URL: strings.TrimSpace(req.URL), Headers: req.Headers, Split: cleanSplit(req.Split)}
 	if strings.EqualFold(req.Method, "POST") {
 		d.Method, d.Body = "POST", req.Body
 	}
-	if protectedLink(d.URL, d.Headers) {
+	if protectedLink(d.URL, d.Headers) || len(d.Split) > 0 && protectedSplit(d.Split, d.Headers) {
 		writeJSON(w, map[string]any{"error": protectedMsg, "protected": true})
 		return
 	}
@@ -252,7 +253,7 @@ func (s *Server) probe(w http.ResponseWriter, r *http.Request) {
 		s.probeTorrent(w, d.URL)
 		return
 	}
-	if looksLikeHLS(d.URL) {
+	if looksLikeHLS(d.URL) || len(d.Split) > 0 {
 		s.probeHLS(w, ctx, d, req.Title)
 		return
 	}
@@ -382,7 +383,7 @@ func (s *Server) add(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", 400)
 		return
 	}
-	if protectedLink(req.URL, req.Headers) {
+	if protectedLink(req.URL, req.Headers) || len(req.Split) > 0 && protectedSplit(cleanSplit(req.Split), req.Headers) {
 		writeJSON(w, map[string]any{"error": protectedMsg, "protected": true})
 		return
 	}
@@ -886,12 +887,14 @@ func (s *Server) extAdd(w http.ResponseWriter, r *http.Request) {
 		Taken   bool              `json:"taken"`
 		Private bool              `json:"private"`
 		Ctx     json.RawMessage   `json:"ctx"`
+		Split   []string          `json:"split"` // a video whose player fetched its picture and sound separately (split.go)
 	}
 	if readJSON(r, &req) != nil || !(strings.HasPrefix(req.URL, "http://") || strings.HasPrefix(req.URL, "https://") || isFTP(req.URL) || isMagnet(req.URL)) || len(req.Body) > 1<<20 || len(req.Ctx) > 4<<10 {
 		http.Error(w, "bad request", 400)
 		return
 	}
-	if protectedLink(req.URL, map[string]string{"Referer": req.Referer}) {
+	split := cleanSplit(req.Split)
+	if protectedLink(req.URL, map[string]string{"Referer": req.Referer}) || len(split) > 0 && protectedSplit(split, map[string]string{"Referer": req.Referer}) {
 		writeJSON(w, map[string]any{"ok": false, "error": protectedMsg, "protected": true})
 		return
 	}
@@ -926,7 +929,7 @@ func (s *Server) extAdd(w http.ResponseWriter, r *http.Request) {
 	if req.Name != "" { // (Base("") is "."; that would stand in for the name the Add dialog works out itself)
 		name = filepath.Base(req.Name)
 	}
-	p := Prompt{URL: req.URL, Name: name, Headers: h, Source: "browser", Title: title, Known: req.Known, Taken: req.Taken, Private: req.Private}
+	p := Prompt{URL: req.URL, Name: name, Headers: h, Source: "browser", Title: title, Known: req.Known, Taken: req.Taken, Private: req.Private, Split: split}
 	if strings.EqualFold(req.Method, "POST") {
 		p.Method, p.Body = "POST", req.Body
 	}
@@ -943,7 +946,7 @@ func (s *Server) extAdd(w http.ResponseWriter, r *http.Request) {
 		}
 		bringToFront()
 	}
-	if p.Method == "" && s.m.hasWaitingLinks() { // maybe the link a stopped download is waiting for
+	if p.Method == "" && len(split) == 0 && s.m.hasWaitingLinks() { // maybe the link a stopped download is waiting for
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
@@ -1136,7 +1139,7 @@ func (s *Server) probeHLS(w http.ResponseWriter, ctx context.Context, d *Downloa
 	s.m.mu.Unlock()
 	res := map[string]any{"kind": "hls", "name": name, "size": -1, "resumable": true, "category": "Video", "dir": dir,
 		"mime": "video stream (" + info.Format + ")", "variants": info.Variants, "segments": info.Segments, "duration": info.Duration,
-		"fmp4": info.FMP4, "separateAudio": info.Audio != nil, "format": info.Format, "live": info.Live, "event": info.Event}
+		"fmp4": info.FMP4, "separateAudio": info.Audio != nil, "format": info.Format, "live": info.Live, "event": info.Event, "split": info.Split}
 	streamChoices(res, info)
 	switch {
 	case info.DRM:
@@ -1145,6 +1148,10 @@ func (s *Server) probeHLS(w http.ResponseWriter, ctx context.Context, d *Downloa
 		res["error"] = "this is a live DASH stream; Zipline records live HLS streams only"
 	case streamRefused(info) != nil:
 		res["error"] = streamRefused(info).Error()
+	}
+	if len(d.Split) > 0 { // (its files expire with no link to renew: never the same as a waiting download)
+		writeJSON(w, res)
+		return
 	}
 	if match := s.m.waitingStream(ctx, d.URL, d.Headers); match != nil && !info.Live { // the same stream as one whose link expired
 		s.m.mu.Lock()

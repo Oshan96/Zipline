@@ -115,6 +115,7 @@ type Download struct {
 	SyncNote  string            `json:"syncNote,omitempty"`
 	SyncSig   string            `json:"syncSig,omitempty"`   // a stream's playlist fingerprint (sync queues)
 	Kind      string            `json:"kind,omitempty"`      // "" = plain file, "hls" = video stream
+	Split     []string          `json:"split,omitempty"`     // a video whose player fetched its picture and sound separately: those files (split.go)
 	Variant   int               `json:"variant,omitempty"`   // HLS: chosen bandwidth (0 = best)
 	VarRes    string            `json:"varRes,omitempty"`    // HLS: the chosen quality's resolution, codecs and frame rate
 	VarCodecs string            `json:"varCodecs,omitempty"` // (bandwidth alone can't tell H.264 and HEVC apart)

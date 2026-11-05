@@ -52,7 +52,7 @@ const metaOf = it => [it.live ? "Live" : fmtDur(it.duration), (it.quals || []).l
       const row = el("div", "row"), t = el("span", "t"), meta = el("span", "m", metaOf(it)), b = el("button", "sm", "Download");
       row.title = it.url;
       t.append(el("span", "n", it.title), meta);
-      row.append(el("span", "tag", it.kind === "hls" ? "HLS" : it.kind === "dash" ? "DASH" : it.kind === "audio" ? "Audio" : "File"), t, b);
+      row.append(el("span", "tag", it.kind === "hls" ? "HLS" : it.kind === "dash" ? "DASH" : it.kind === "split" ? "Video" : it.kind === "audio" ? "Audio" : "File"), t, b);
       b.onclick = async () => {
         b.textContent = "…";
         const res = await send({ type: "send-media", tabId: tab.id, url: it.url, frameUrl: tab.url });

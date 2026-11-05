@@ -143,6 +143,7 @@ type Prompt struct {
 	Source  string            `json:"source"`
 	Title   string            `json:"title,omitempty"` // page title, used to name video streams
 	Kind    string            `json:"kind,omitempty"`  // "" = one link, "links" = page links to pick from
+	Split   []string          `json:"split,omitempty"` // a video whose picture and sound are separate files (split.go)
 	JobID   string            `json:"jobId,omitempty"`
 	Dir     string            `json:"dir,omitempty"` // preset save folder (command line)
 	QueueID string            `json:"queueId,omitempty"`
@@ -589,6 +590,7 @@ type AddReq struct {
 	Mirrors  []string          `json:"mirrors"`  // other addresses for the same file
 	Checksum string            `json:"checksum"` // a checksum to check the file against (as pasted)
 	Meta     bool              `json:"meta"`     // URL is a metalink
+	Split    []string          `json:"split"`    // a video whose player fetched its picture and sound separately (split.go)
 	MetaFile int               `json:"metaFile"` // which of its files (-1 = all)
 
 	LiveFrom  string `json:"liveFrom"`  // a live event stream: "start" records it from its beginning, else from now
@@ -640,6 +642,9 @@ func (m *Manager) Add(r AddReq) *Download {
 		d.Category = m.categoryFor(d.FileName)
 	}
 	d.Mirrors = cleanMirrors(r.Mirrors, d.URL)
+	if s := cleanSplit(r.Split); len(s) > 0 {
+		d.Split, d.Kind, d.Mirrors = s, "hls", nil
+	}
 	d.Check, d.Pieces = r.check, r.pieces
 	d.LiveFrom, d.StopAfter = r.LiveFrom, max(r.StopAfter, 0)
 	if c, err := parseChecksum(r.Checksum, d.FileName); err == nil && c != nil {

@@ -48,7 +48,7 @@ Pause and resume across restarts and reboots. Outages, sleep and expired links d
 
 ### 🎬 Video, ready to play
 
-HLS and DASH streams become one MP4 (or WebM, MKV) with no re-encoding, with your choice of quality, audio languages and subtitles. Live streams record too.
+HLS and DASH streams, and players that fetch the picture and sound as separate files, become one MP4 (or WebM, MKV) with no re-encoding, with your choice of quality, audio languages and subtitles. Live streams record too.
 
 </td>
 </tr>

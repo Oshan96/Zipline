@@ -11,6 +11,7 @@ internal/             libraries the program is built from, each with its own tes
   bencode/            BitTorrent's encoding
   filename/           picking and cleaning file names the way browsers do
   httpauth/           HTTP Basic and Digest logins
+  mediahead/          what the start of an MP4 or WebM file says: picture or sound, length, encryption
   pac/                proxy auto-config scripts, with a small JavaScript interpreter
   psl/                the Public Suffix List
   qr/                 QR codes for pairing a phone

@@ -322,6 +322,7 @@ type hlsInfo struct {
 	Audio    *hlsMedia    `json:"-"` // separate audio track, if the stream has one
 	AudioURL string       `json:"-"`
 	Format   string       `json:"format"` // HLS or DASH
+	Split    bool         `json:"split"`  // DASH: a player's separate picture and sound files (split.go)
 	Event    bool         `json:"event"`  // a live event stream: everything since it began is listed
 	Target   float64      `json:"target"` // a live stream's target duration (seconds)
 
@@ -339,6 +340,9 @@ type hlsInfo struct {
 
 // resolveHLS loads the playlist (and the chosen variant if it's a master playlist).
 func (m *Manager) resolveHLS(ctx context.Context, d *Download, u string, bandwidth int) (*hlsInfo, error) {
+	if len(d.Split) > 0 && u == d.URL {
+		return m.resolveSplit(ctx, d, bandwidth)
+	}
 	body, final, err := m.fetchText(ctx, d, u)
 	if err != nil {
 		return nil, err

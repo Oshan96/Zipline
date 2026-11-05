@@ -191,7 +191,8 @@ B.contextMenus.onClicked.addListener(async (info, tab) => {
 
 // ---- Video detection ---------------------------------------------------------------------
 // Watches responses for video/audio files and stream manifests (HLS .m3u8, DASH .mpd) so the popup and the on-page
-// button can offer them. Pieces of a stream (.ts/.m4s chunks, byte-range parts) are ignored.
+// button can offer them. Pieces of a stream (.ts/.m4s chunks) are ignored; a file fetched in byte-range pieces may be
+// half of a video whose picture and sound are separate files (see "split" below).
 // One stream is one entry: the master playlist (or MPD) together with the media playlists, renditions and parts it
 // lists, so the app's Add dialog gets the master and picks the quality itself. For each entry we keep what the
 // player's own request carried (Referer, Origin, User-Agent, whether it had cookies); the popup and the on-page
@@ -232,7 +233,8 @@ function updateMedia(tabId, change) {
     change(list);
     await B.storage.session.set({ [mediaKey(tabId)]: list });
     B.action.setBadgeBackgroundColor({ tabId, color: "#1a6cf0" });
-    B.action.setBadgeText({ tabId, text: list.length ? String(list.length) : "" });
+    const n = shown(list).length;
+    B.action.setBadgeText({ tabId, text: n ? String(n) : "" });
   }).catch(() => {});
   return writeChain;
 }
@@ -242,6 +244,7 @@ function updateMedia(tabId, change) {
 // by folder, but only for plain files (never for another manifest).
 const bare = u => u.split(/[?#]/)[0];
 function covers(e, x) {
+  if (e.kind === "split") return e.url === x.url || (e.files || []).some(f => f.url === x.url);
   if (e.url === x.url || (e.children || []).includes(x.url)) return true;
   if (!isStream(x) && (e.prefixes || []).some(p => x.url.startsWith(p))) return true;
   const b = bare(x.url);
@@ -283,8 +286,81 @@ function addMedia(tabId, item) {
 function absorb(list, e) {
   if (!isStream(e)) return;
   for (let j = list.length - 1; j >= 0; j--) {
-    if (list[j] !== e && covers(e, list[j])) { fold(e, list[j]); list.splice(j, 1); }
+    const x = list[j];
+    if (x.kind === "split") { // (files a playlist lists are its stream's, not a split video's)
+      x.files = x.files.filter(f => !covers(e, { url: f.url, kind: "video" }));
+      if (!x.files.length) list.splice(j, 1);
+    } else if (x !== e && covers(e, x)) { fold(e, x); list.splice(j, 1); }
   }
+}
+
+// ---- videos whose picture and sound are separate files, fetched in pieces
+// Some players fetch a video's picture and its sound as two files, a piece at a time (the piece's byte range in
+// the address, or in a Range header), with no playlist to say which is which. Each such file is noted in the tab's
+// "split" entry; the app reads the start of each (newest first) and puts the right picture and sound together. A
+// player that was quiet for a minute starts another entry when it fetches again. A plain video is fetched in
+// Range-header pieces too, so such a file stays an ordinary entry as well: the split entry only shows, and stands
+// in for those, once it plainly holds a separate picture and sound.
+const SPLIT_TYPE = /^(video|audio)\/(mp4|webm|x-matroska)$/;
+const SPLIT_PATH = /\.(mp4|m4v|m4a|webm|weba|mka|mkv)$/i;
+const SPLIT_GAP = 60000, SPLIT_FILES = 8;
+const RANGE_PARAM = /^(bytestart|byteend|range|start_byte|end_byte)$/i;
+
+// wholeFile: a piece's address without the part that picks the piece. The rest stays exactly as it was (a signed
+// address can't take its query written another way); the app does the same.
+function wholeFile(url) {
+  const base = url.split("#")[0], i = base.indexOf("?");
+  if (i < 0) return base;
+  const keep = base.slice(i + 1).split("&").filter(p => {
+    let k = p.split("=")[0];
+    try { k = decodeURIComponent(k); } catch {}
+    return !RANGE_PARAM.test(k);
+  });
+  return base.slice(0, i) + (keep.length ? "?" + keep.join("&") : "");
+}
+
+// splitShown: does a split entry plainly hold separate picture and sound? Pieces picked in the address are never a
+// plain video's; otherwise it takes a sound file and a picture file.
+function splitShown(e) {
+  if (e.kind !== "split") return false;
+  const fs = e.files || [];
+  return fs.some(f => f.qs) || (fs.some(f => f.type.startsWith("audio/")) && fs.some(f => f.type.startsWith("video/")));
+}
+
+// shown: the entries the popup and the button offer (a split entry that shows stands in for its files' own).
+function shown(list) {
+  const splits = list.filter(splitShown);
+  return list.filter(e => e.kind === "split" ? splitShown(e) : !splits.some(s => s.files.some(f => f.url === e.url)));
+}
+
+const splitNoted = new Map(); // tab + file -> when it was last written down (not every piece is)
+function noteSplit(tabId, url, type, qs, hdr) {
+  const now = Date.now(), key = tabId + " " + url;
+  if (now - (splitNoted.get(key) || 0) < 5000) return;
+  splitNoted.set(key, now);
+  if (splitNoted.size > 500) splitNoted.delete(splitNoted.keys().next().value);
+  return updateMedia(tabId, list => {
+    if (list.some(x => isStream(x) && covers(x, { url, kind: "video" }))) return; // (a playlist's file)
+    let e = list.find(x => x.kind === "split" && x.files.some(f => f.url === url));
+    if (!e) {
+      const last = list.filter(x => x.kind === "split").pop();
+      e = last && now - last.seen < SPLIT_GAP ? last : null;
+    }
+    if (!e) {
+      e = { url: "split:" + url, kind: "split", files: [], size: -1, name: "", seen: now }; // (its own key: the file may be an ordinary entry too)
+      list.push(e);
+      while (list.length > MAX_PER_TAB) list.shift();
+    }
+    let f = e.files.find(x => x.url === url);
+    if (!f) e.files.push(f = { url, type: "", qs: false });
+    f.seen = now;
+    f.qs = f.qs || qs;
+    if (type) f.type = type;
+    e.files.sort((a, b) => b.seen - a.seen);
+    e.files.length = Math.min(e.files.length, SPLIT_FILES);
+    e.seen = now;
+    if (hdr) e.hdr = hdr;
+  });
 }
 
 const sniffs = new Map(); // tab -> reads of unclear replies so far
@@ -502,7 +578,7 @@ B.webRequest.onHeadersReceived.addListener(details => {
   const sc = details.statusCode;
   if (details.tabId < 0 || sc >= 400 || (sc >= 300 && sc !== 304) || details.method !== "GET") return;
   const url = details.url;
-  if (!/^https?:/i.test(url) || CHUNK_QS.test(url)) return;
+  if (!/^https?:/i.test(url)) return;
   if (isBlockedHost(hostOf(url)) || isBlockedHost(hostOf(details.initiator || details.originUrl || details.documentUrl || ""))) return;
   const path = pathOf(url);
   if (!path || CHUNK_EXT.test(path)) return;
@@ -510,6 +586,12 @@ B.webRequest.onHeadersReceived.addListener(details => {
   if (CHUNK_TYPE.test(type)) return;
   const len = +header(details.responseHeaders, "content-length") || 0;
   const total = +((header(details.responseHeaders, "content-range").split("/")[1]) || 0) || len;
+  const qs = CHUNK_QS.test(url), whole = total > len ? total : 0; // (a piece's reply says the whole file's size only in Content-Range)
+  if ((qs || sc === 206) && (SPLIT_TYPE.test(type) || (!type || AMBIGUOUS.test(type)) && SPLIT_PATH.test(path))
+    && !(whole > 0 && whole < (type.startsWith("audio/") ? 16 : 300) * 1024)) { // (a short clip's sound can be small)
+    noteSplit(details.tabId, wholeFile(url), SPLIT_TYPE.test(type) ? type : "", qs, sentHdr.get(details.requestId));
+  }
+  if (qs) { sentHdr.delete(details.requestId); return; } // (one piece of a file: the rest is for whole files and playlists)
   // by the reply's type; by the address when the type is no help (anything but a web page or picture)
   const hlsT = HLS_TYPE.test(type), dashT = DASH_TYPE.test(type);
   const byPath = !(hlsT || dashT) && /\.(m3u8|mpd)$/i.test(path) && !/^(text\/html|image\/)/.test(type);
@@ -603,14 +685,14 @@ function streamName(e) {
 // mediaList: this tab's entries, newest first, with the names and lengths the popup and the button show.
 // src: the address the page's own <video> plays, offered too when no entry covers it.
 async function mediaList(tabId, src) {
-  const list = await mediaFor(tabId);
+  const all = await mediaFor(tabId), list = shown(all);
   const page = await pageInfo(tabId);
   const out = list.slice().reverse().map(e => ({
     url: e.url, kind: e.kind, size: e.size, name: e.name, live: !!e.live, quals: e.quals || [],
-    title: isStream(e) ? (page.title || streamName(e)) : (e.name || (e.kind === "audio" ? "Audio" : "Video file")),
+    title: isStream(e) || e.kind === "split" ? (page.title || (e.kind === "split" ? "Video" : streamName(e))) : (e.name || (e.kind === "audio" ? "Audio" : "Video file")),
     duration: e.duration || (list.length === 1 ? page.dur : 0) || 0,
   }));
-  if (src && /^https?:/i.test(src) && !isBlockedHost(hostOf(src)) && !list.some(e => covers(e, { url: src.split("#")[0], kind: "video" }))) {
+  if (src && /^https?:/i.test(src) && !isBlockedHost(hostOf(src)) && !all.some(e => covers(e, { url: src.split("#")[0], kind: "video" }))) {
     const kind = /\.m3u8(\?|$)/i.test(src) ? "hls" : /\.mpd(\?|$)/i.test(src) ? "dash" : "video";
     out.unshift({ url: src.split("#")[0], kind, size: -1, name: "", live: false, quals: [], title: page.title || "This video", duration: page.dur });
   }
@@ -623,14 +705,16 @@ async function sendMedia(tabId, url, frameUrl) {
   let tab = null;
   try { tab = await B.tabs.get(tabId); } catch {}
   if (!(await pingNow())) return { ok: false, error: "Zipline isn't running" };
-  const e = (await mediaFor(tabId)).find(x => covers(x, { url: url.split("#")[0], kind: "video" }));
-  const target = e ? e.url : url;
-  if (isBlockedHost(hostOf(target))) return { ok: false, error: blockedMsg() };
+  const list = await mediaFor(tabId);
+  const e = list.find(x => splitShown(x) && x.url === url) || list.find(x => x.kind !== "split" && covers(x, { url: url.split("#")[0], kind: "video" }));
+  const split = e && e.kind === "split" ? e.files.map(f => f.url) : null; // (newest first: the app takes the newest picture's video)
+  const target = split ? split[0] : e ? e.url : url;
+  if ([target, ...(split || [])].some(u => isBlockedHost(hostOf(u)))) return { ok: false, error: blockedMsg() };
   const h = e && e.hdr; // (none when the request wasn't seen: the page it came from stands in)
   const page = await pageInfo(tabId), ctx = await ctxOfTab(tab);
   const r = await call("add", {
     url: target, referer: h ? h.referer : (frameUrl || tab?.url || ""), origin: h ? h.origin : "", userAgent: (h && h.ua) || navigator.userAgent,
-    cookie: h && !h.cookie ? "" : await cookieHeader(target, ctx), title: page.title, private: ctx.private,
+    cookie: h && !h.cookie ? "" : await cookieHeader(target, ctx), title: page.title, private: ctx.private, ...(split ? { split } : {}),
   }, 5000);
   return r && r.ok !== false ? { ok: true } : { ok: false, error: (r && r.error) || "Couldn't reach Zipline" };
 }

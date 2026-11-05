@@ -1815,8 +1815,9 @@ async function fileInfoDialog(url, headers = {}, presetName = "", onDone, title 
   // early start: the app may begin downloading as soon as it has the file's details
   let earlyId = "", committed = false, keepTimer = 0, added = false;
   // a download from the browser: its own request (a form's POST), what its reply said (so the app doesn't
-  // ask the server again), a private window; closing the dialog without adding it hands it back
-  const req = { method: preset.method || "", body: preset.body || "", known: preset.known || null, private: !!preset.private };
+  // ask the server again), a private window, a video whose player fetched its picture and sound as separate
+  // files (split); closing the dialog without adding it hands it back
+  const req = { method: preset.method || "", body: preset.body || "", known: preset.known || null, private: !!preset.private, split: preset.split || [] };
   let torrent = null; // a torrent's own Start/Later/close handling
   const el = dialog({
     title: t("fi.title"), width: 560,
@@ -1865,7 +1866,7 @@ async function fileInfoDialog(url, headers = {}, presetName = "", onDone, title 
     ? `<div class="err-box err-act"><div>${te("fi.challenge")}</div><button class="btn sm" id="fi-browse">${te("ctx.openInBrowser")}</button></div>`
     : `<div class="err-box">${ht("fi.readFail", { error: info.error })}</div>`;
   const facts = fold ? folderFacts(info, st) : hls ? `
-      <div>${te("fact.type")}</div><div class="wrap">${ht(live ? (info.event ? "fi.eventType" : "fi.liveType") : info.fmp4 && info.format !== "DASH" ? "fi.hlsTypeMp4" : "fi.hlsType", { format: info.format || "HLS" })}</div>
+      <div>${te("fact.type")}</div><div class="wrap">${ht(live ? (info.event ? "fi.eventType" : "fi.liveType") : info.split ? "fi.splitType" : info.fmp4 && info.format !== "DASH" ? "fi.hlsTypeMp4" : "fi.hlsType", { format: info.format || "HLS" })}</div>
       <div>${te("fact.length")}</div><div>${live ? te("fi.liveLength") : info.duration ? fmtDur(info.duration) : "—"}</div>
       ${live ? "" : `<div>${te("fact.pieces")}</div><div>${ht("fi.hlsPieces", { n: info.segments || "—", conns: Math.min(12, st.conns) })}</div>`}
       <div>${te("fact.savedAs")}</div><div class="wrap" id="fi-saved">${ht(info.separateAudio ? "fi.savedMerged" : /\.ts$/i.test(name) ? "fi.savedTs" : info.fmp4 ? "fi.savedMp4" : "fi.savedRepack")}</div>
@@ -1975,7 +1976,7 @@ async function fileInfoDialog(url, headers = {}, presetName = "", onDone, title 
     }
     const sameUrl = $("#url", el).value.trim() === url;
     if (!r) r = await api("add", { url: $("#url", el).value.trim(), ...pick, start, queueId: start ? "" : qid, headers, ...(stream ? stream.pick() : {}), size: !hls && !ml && sameUrl && info.size > 0 ? info.size : 0,
-      ...(sameUrl ? { method: req.method, body: req.body } : {}), private: req.private });
+      ...(sameUrl ? { method: req.method, body: req.body, split: req.split } : {}), private: req.private });
     if (r.error) {
       if (r.field === "checksum") return badSum(cap1(r.error) + ".");
       throw new Error(r.error);
@@ -4323,7 +4324,7 @@ async function processPrompts(prompts) {
   else if (p.kind === "pair") await pairDialog(p); // a browser extension asks to connect (extlink.js)
   else if (p.kind === "phone") await phoneDialog(p); // a phone asks to connect (phoneui.js)
   else await new Promise(res => fileInfoDialog(p.url, p.headers || {}, p.name || "", res, p.title || "", { dir: p.dir, queueId: p.queueId,
-    method: p.method, body: p.body, known: p.known, private: p.private, taken: p.taken, promptId: p.id }));
+    method: p.method, body: p.body, known: p.known, private: p.private, taken: p.taken, promptId: p.id, split: p.split }));
   S.promptBusy = false;
 }
 
