@@ -20,6 +20,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"zipline/internal/unpack"
 )
 
 type Category struct {
@@ -69,6 +71,7 @@ type Settings struct {
 	Proxy              ProxySettings   `json:"proxy"`
 	Cap                DataCap         `json:"cap"`
 	Scan               ScanSettings    `json:"scan"`
+	Unpack             UnpackSettings  `json:"unpack"`
 	Tray               bool            `json:"tray"`
 	Sites              []SiteRule      `json:"sites"`
 	SkipSites          []string        `json:"skipSites"` // the browser extension never takes downloads from these
@@ -274,6 +277,10 @@ func NewManager(dataDir string) *Manager {
 		d.done = sum
 		if d.ScanState == "scanning" || d.ScanState == "waiting" {
 			d.ScanState, d.ScanNote = "", ""
+		}
+		if d.UnpackState == "unpacking" || d.UnpackState == "waiting" { // Zipline closed meanwhile: Unpack now does it again
+			d.UnpackState, d.UnpackNote = "", ""
+			os.RemoveAll(unpack.TempDir(d.path()))
 		}
 		if d.LegacyQ && d.Queue == "" {
 			d.Queue = "main"
@@ -1459,6 +1466,12 @@ type DLView struct {
 	PiecesBad int `json:"piecesBad,omitempty"`
 
 	Private bool `json:"private,omitempty"` // from a private window: leaves the list once finished
+
+	// unpacking an archive when it's done (unpack.go)
+	Unpack      string `json:"unpack,omitempty"`
+	UnpackState string `json:"unpackState,omitempty"`
+	UnpackNote  string `json:"unpackNote,omitempty"`
+	UnpackDir   string `json:"unpackDir,omitempty"`
 }
 
 type QView struct {
@@ -1519,6 +1532,7 @@ func (m *Manager) Snapshot(withSegs map[string]bool) Snapshot {
 		}
 		v.TryAgain = m.retryAt(d)
 		v.Private = d.Private
+		v.Unpack, v.UnpackState, v.UnpackNote, v.UnpackDir = d.Unpack, d.UnpackState, d.UnpackNote, d.UnpackDir
 		v.Move = moveView(d.ID)
 		if d.running && d.Status == StDownloading && d.Kind == "" {
 			v.Retrying = d.reconnecting()

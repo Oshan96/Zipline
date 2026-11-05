@@ -16,6 +16,7 @@ internal/             libraries the program is built from, each with its own tes
   qr/                 QR codes for pairing a phone
   quickxor/           OneDrive's QuickXorHash
   sitemap/            reading sitemaps
+  unpack/             unpacking zip and tar archives safely
   utp/                uTP, and the mux that shares the torrent port's UDP socket
 web/                  the window (index.html, app.js), the phone page (m.html), their shared colours and words
 extension/            the browser extension (one source; manifest.firefox.json for Firefox)

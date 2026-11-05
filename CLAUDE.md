@@ -5,7 +5,7 @@ Zipline is a standalone download manager in the style of IDM. It's one Go progra
 ## Layout
 
 - `cmd/zipline/`: the program (`package main`). File names below without a folder are here.
-- `internal/<name>/`: code that stands on its own, without the download manager (`bencode`, `filename`, `httpauth`, `pac`, `psl`, `qr`, `quickxor`, `sitemap`, `utp`). Each package has its own tests. New code that needs nothing from `Manager`, `Download` or the settings goes in a package here.
+- `internal/<name>/`: code that stands on its own, without the download manager (`bencode`, `filename`, `httpauth`, `pac`, `psl`, `qr`, `quickxor`, `sitemap`, `unpack`, `utp`). Each package has its own tests. New code that needs nothing from `Manager`, `Download` or the settings goes in a package here.
 - `web/`: the window and the phone page; `web/web.go` embeds them for the program.
 - `extension/`: the browser extension. `assets/`: the icon and the docs' screenshots. `docs/`: the user guide, development and release docs.
 - `packaging/`: `package.sh`, the Windows installer (`windows/`), the macOS disk image (`macos/`) and the `.deb` and `.rpm` (`linux/`). `tools/`: contrast check, browser tests, screenshots.

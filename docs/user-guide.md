@@ -124,6 +124,16 @@ Names the server gives are read as browsers read them (including international n
 
 Right-click → Move to folder… (or Move… in Properties) moves a download's files to another folder, finished or not: one in progress pauses, moves and carries on, a torrent keeps sharing from its new place, a video keeps its subtitles and parts beside it. Moving to another drive copies first and removes the original only once the copy is complete, and a file already there is never overwritten.
 
+### Unpack archives when they finish
+
+Options → File checks → **Unpack archives** unpacks `.zip`, `.tar`, `.tar.gz` (`.tgz`) and `.tar.bz2` downloads when they finish, into a folder next to the archive: the one folder the archive holds, when it holds just one, or else a folder named after the archive (a name already taken gets " (1)"). **Unpack** in Properties sets it for one download, and right-click → **Unpack now** unpacks any finished archive; **Open unpacked folder** opens the result.
+
+- It waits for the file's checks: an archive that doesn't match its checksum, or in which the virus scan found something, isn't unpacked.
+- Nothing lands outside that folder: names that point elsewhere (`../`, full paths) and links are left out, and names are made safe for any system. The unpacked files carry the same "downloaded from the internet" mark as the archive.
+- The folder appears only once everything is in it. If the disk runs short, or the drive can't hold one of the files (FAT32 stops at 4 GB), nothing is left half-unpacked.
+- **Delete the archive once it's unpacked** removes it afterwards, and Open and Show in folder then go to the unpacked folder. A synchronization queue's archives are kept, since the queue compares them with the server.
+- Password-protected zip files, other formats (`.7z`, `.rar`, a lone `.gz`) and torrents aren't unpacked.
+
 ### Proxies
 
 Zipline follows your computer's proxy settings by default, including setup scripts (PAC files) and automatic detection, on Windows, macOS and Linux (GNOME or KDE settings, or the usual environment variables). When a proxy in the list doesn't answer, the next one is used. You can also set an HTTP or SOCKS5 proxy with a login and a "don't use for" list in Options → Proxy, with a Test button. FTP downloads go through a SOCKS5 proxy.

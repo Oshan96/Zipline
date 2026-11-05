@@ -188,6 +188,7 @@ func sameView(a, b *DLView) bool {
 		a.PiecesOK == b.PiecesOK && a.PiecesBad == b.PiecesBad &&
 		a.Retrying == b.Retrying && a.RetryAt == b.RetryAt && a.TryAgain == b.TryAgain &&
 		a.Live == b.Live && a.Rec == b.Rec && a.Private == b.Private &&
+		a.Unpack == b.Unpack && a.UnpackState == b.UnpackState && a.UnpackNote == b.UnpackNote && a.UnpackDir == b.UnpackDir &&
 		(a.Move == b.Move || a.Move != nil && b.Move != nil && *a.Move == *b.Move) &&
 		slices.Equal(a.Segs, b.Segs) && slices.Equal(a.Mirrors, b.Mirrors) && slices.Equal(a.Sources, b.Sources) &&
 		(a.Check == b.Check || a.Check != nil && b.Check != nil && *a.Check == *b.Check) &&

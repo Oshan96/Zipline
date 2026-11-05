@@ -625,6 +625,20 @@ func (s *Server) action(w http.ResponseWriter, r *http.Request) {
 		m.Move(req.IDs, 1)
 	case "scan":
 		m.ScanNow(req.IDs)
+	case "unpack":
+		m.UnpackNow(req.IDs)
+	case "openUnpacked": // the folder an archive was unpacked into
+		m.mu.Lock()
+		var dirs []string
+		for _, id := range req.IDs {
+			if d := m.byID[id]; d != nil && d.UnpackDir != "" {
+				dirs = append(dirs, d.UnpackDir)
+			}
+		}
+		m.mu.Unlock()
+		for _, p := range dirs {
+			openPath(p)
+		}
 	case "stopSharing":
 		for _, id := range req.IDs {
 			m.StopSharing(id)
@@ -650,7 +664,7 @@ func (s *Server) action(w http.ResponseWriter, r *http.Request) {
 				if d.Status != StCompleted && d.Kind != "torrent" { // (torrents write under their own names)
 					p = d.partPath()
 				}
-				paths = append(paths, p)
+				paths = append(paths, unpackedOrArchive(d, p)) // (an archive deleted once unpacked: its folder)
 			}
 		}
 		m.mu.Unlock()
@@ -740,6 +754,7 @@ func (s *Server) props(w http.ResponseWriter, r *http.Request) {
 		Name    string    `json:"name"`
 		Desc    string    `json:"desc"`
 		Scan    string    `json:"scan"`    // "" = unchanged, "default", "on", "off"
+		Unpack  string    `json:"unpack"`  // the same, for unpacking an archive when it's done
 		Mirrors *[]string `json:"mirrors"` // nil = unchanged
 	}
 	if readJSON(r, &req) != nil {
@@ -781,6 +796,12 @@ func (s *Server) props(w http.ResponseWriter, r *http.Request) {
 		d.Scan = ""
 	case "on", "off":
 		d.Scan = req.Scan
+	}
+	switch req.Unpack {
+	case "default":
+		d.Unpack = ""
+	case "on", "off":
+		d.Unpack = req.Unpack
 	}
 	if n := sanitizeName(req.Name); req.Name != "" && n != d.FileName {
 		if d.running {

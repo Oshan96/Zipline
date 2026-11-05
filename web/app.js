@@ -61,9 +61,11 @@ function statusText(d) {
   if (d.torrent) { const x = torrentStatus(d); if (x) return x; }
   switch (d.status) {
     case "completed":
+      if (d.unpackState === "unpacking") return t("st.completeUnpacking", { pct: fmtPct(d.stagePct || 0, 0) });
       if (d.stage) return t("st.completeChecking", { pct: fmtPct(d.stagePct || 0, 0) });
       if (d.check && d.check.state === "bad") return t("st.completeDamaged");
-      return t(d.scanState === "scanning" || d.scanState === "waiting" ? "st.completeScanning" : d.scanState === "threat" ? "st.completeThreat" : d.check && d.check.state === "ok" ? "st.completeVerified" : "st.complete");
+      return t(d.scanState === "scanning" || d.scanState === "waiting" ? "st.completeScanning" : d.scanState === "threat" ? "st.completeThreat"
+        : d.unpackState === "done" ? "st.completeUnpacked" : d.unpackState === "failed" ? "st.completeNotUnpacked" : d.check && d.check.state === "ok" ? "st.completeVerified" : "st.complete");
     case "error": {
       if (d.tryAgain) return t("st.errorRetrying", { wait: fmtWait(Math.max(0, d.tryAgain - Date.now()) / 1000) }); // its queue tries it again
       const w = t(d.link === "refreshing" ? "st.linkRefreshing" : d.link ? "st.linkExpired" : "st.error");
@@ -830,6 +832,9 @@ function rowCells(d) {
   };
 }
 const SCAN_STATES = ["waiting", "scanning", "clean", "threat", "failed"];
+// isArchive: a download Zipline can unpack when it's done (unpack.go): a .zip or .tar file, not a stream or torrent
+const isArchive = d => !!d && !d.torrent && !isHLS(d) && /\.(zip|tar|tgz|tbz2?|tar\.gz|tar\.bz2)$/i.test(d.name || "");
+const canUnpack = d => d.status === "completed" && isArchive(d) && d.unpackState !== "waiting" && d.unpackState !== "unpacking";
 const scanCell = d => d.scanState ? `<span class="scan ${d.scanState}" title="${esc(d.scanNote || "")}">${SCAN_STATES.includes(d.scanState) ? esc(t("scan." + d.scanState)) : ""}</span>` : "";
 const descText = d => d.desc || (d.status === "error" ? d.error : "") || (d.scanState === "threat" ? d.scanNote : "") || d.note || d.syncNote || "";
 function renderTable() {
@@ -986,6 +991,10 @@ function rowCtx(e) {
     SEP,
     menuItem(t(sl.every(d => d.torrent) ? "a.copyMagnet" : "a.copyLink"), "", () => { navigator.clipboard?.writeText(sl.map(d => d.torrent?.magnet || d.url).join("\n")); toast(t(sl.every(d => d.torrent) ? "ctx.magnetCopied" : "ctx.linkCopied")); }),
     menuItem(t("ctx.scanNow"), "", () => act("scan", sl.filter(d => d.status === "completed").map(d => d.id)), { disabled: !sl.some(d => d.status === "completed") }),
+    ...(sl.some(isArchive) ? [
+      menuItem(t("ctx.unpackNow"), "", () => act("unpack", sl.filter(canUnpack).map(d => d.id)), { disabled: !sl.some(canUnpack) }),
+      menuItem(t("ctx.openUnpacked"), "", () => act("openUnpacked", sl.filter(d => d.unpackDir).map(d => d.id)), { disabled: !sl.some(d => d.unpackDir) }),
+    ] : []),
     menuItem(t("ctx.exportSelected"), "", () => exportDialog(sl.map(d => d.id))),
     menuItem(t("a.removeFromList"), "Del", () => removeSel(false)),
     menuItem(t("a.deleteFile"), "Shift+Del", () => removeSel(true)),
@@ -2551,6 +2560,8 @@ function propsDialog(d, focus) {
       ${field(te("f.speedLimit"), `<div class="inline"><input class="inp num" id="plim" type="number" min="0" step="50"><span class="unit">${te("pr.limitUnit")}</span></div>`)}
       ${field(te("f.virusScan"), `<select class="inp" id="pscan">
         <option value="">${te("pr.scanDefault", { state: S.settings?.scan?.on ? "on" : "off" })}</option><option value="on">${te("pr.scanOnFile")}</option><option value="off">${te("pr.scanOffFile")}</option></select>`)}
+      ${isArchive(d) ? field(te("f.unpack"), `<select class="inp" id="punpack">
+        <option value="">${te("pr.unpackDefault", { state: S.settings?.unpack?.on ? "on" : "off" })}</option><option value="on">${te("pr.unpackOn")}</option><option value="off">${te("pr.unpackOff")}</option></select>`) : ""}
       ${hls ? "" : field(te("f.checksum"), `<input class="inp" id="psum" spellcheck="false" placeholder="${te("pr.sumPh")}">`, { hint: `<div class="sum-state" id="psumst"></div>` })}
       <div class="kv" style="margin-top:12px">
         <div>${te("fact.category")}</div><div>${esc(catName(d.category))}</div>
@@ -2564,6 +2575,7 @@ function propsDialog(d, focus) {
         <div id="pexpk" hidden>${te("fact.linkExpires")}</div><div id="pexp" hidden></div>
         ${d.scanState ? `<div>${te("fact.virusScan")}</div><div class="scan ${d.scanState}" title="${esc(d.scanNote || "")}">${esc(d.scanNote || (SCAN_STATES.includes(d.scanState) ? t("scan." + d.scanState) : ""))}</div>` : ""}
         ${d.syncNote ? `<div>${te("fact.syncCheck")}</div><div>${esc(d.syncNote)}${fmtDate(d.checked) ? " · " + fmtDate(d.checked) : ""}</div>` : ""}
+        ${d.unpackNote ? `<div>${te("fact.unpack")}</div><div class="wrap">${esc(d.unpackNote)}</div>` : ""}
       </div>`,
     buttons: [
       { label: t("btn.save"), primary: true, busy: t("btn.saving"), fn: async el => {
@@ -2578,6 +2590,7 @@ function propsDialog(d, focus) {
         }
         const body = { id, name: $("#pn", el).value, url: $("#pu", el).value, desc: $("#pd", el).value, scan: $("#pscan", el).value || "default" };
         if ($("#pm", el)) body.mirrors = $("#pm", el).value.split(/\s+/).filter(Boolean);
+        if ($("#punpack", el)) body.unpack = $("#punpack", el).value || "default";
         const r = await api("props", body);
         if (r.error) return /renam/i.test(r.error) ? bad($("#pn", el), cap1(r.error) + ".") : Promise.reject(new Error(r.error));
         const kb = Math.max(0, +$("#plim", el).value || 0);
@@ -2597,6 +2610,7 @@ function propsDialog(d, focus) {
   $("#pmove", el).onclick = () => moveDialog([id]);
   $("#pn", el).value = d.name; $("#pu", el).value = d.url; $("#pd", el).value = d.desc || ""; $("#plim", el).value = d.limitKB || 0; $("#pscan", el).value = d.scan || "";
   if ($("#pm", el)) $("#pm", el).value = (d.mirrors || []).join("\n");
+  if ($("#punpack", el)) $("#punpack", el).value = d.unpack || "";
   if ($("#psum", el)) $("#psum", el).value = sumWant(d);
   const draw = () => {
     const x = S.byId.get(id) || d;
@@ -2918,6 +2932,10 @@ async function optionsDialog(tab = "general", focus = "") {
       <div class="section-title"><span>${te("o.scanTitle")}</span></div>
       <label class="chk"><input type="checkbox" id="o-scan"> ${te("o.scan")}</label>
       <div class="hint indent-chk">${te("o.scanHint")}</div>
+      <div class="section-title"><span>${te("o.unpackTitle")}</span></div>
+      <label class="chk"><input type="checkbox" id="o-unpack"> ${te("o.unpack")}</label>
+      <div class="hint indent-chk">${te("o.unpackHint")}</div>
+      <label class="chk indent-chk"><input type="checkbox" id="o-unpackdel"> ${te("o.unpackDel")}</label>
       <div class="sub" style="margin-top:12px">
         ${field(te("o.scanner"), `<select class="inp fit" id="o-scanmode"><option value="auto">${te("o.scanAuto")}</option><option value="custom">${te("o.scanCustom")}</option></select>`, { hint: "", hintId: "o-scanauto" })}
         <div id="o-scancustom">
@@ -3259,6 +3277,10 @@ async function optionsDialog(tab = "general", focus = "") {
     if (out.hidden) return;
     out.innerHTML = planSummaryHTML(p);
   };
+  const up = st.unpack || {};
+  $("#o-unpack", el).checked = !!up.on; $("#o-unpackdel", el).checked = !!up.delete;
+  const syncUnpack = () => { $("#o-unpackdel", el).disabled = !$("#o-unpack", el).checked; };
+  $("#o-unpack", el).onchange = syncUnpack; syncUnpack();
   const sc = st.scan || {};
   $("#o-scan", el).checked = !!sc.on;
   $("#o-scanmode", el).value = sc.program ? "custom" : "auto";
@@ -3457,6 +3479,7 @@ async function optionsDialog(tab = "general", focus = "") {
     st.cap = { on: $("#o-cap", el).checked, mb: Math.max(1, +$("#o-capmb", el).value || 500), hours: +$("#o-caph", el).value || 1 };
     const custom = $("#o-scanmode", el).value === "custom", scanWas = el._scanWas ??= { ...(st.scan || {}) }; // (as last saved)
     st.scan = { on: $("#o-scan", el).checked, program: custom ? $("#o-scanprog", el).value.trim() : "", args: custom ? $("#o-scanargs", el).value.trim() : "" };
+    st.unpack = { on: $("#o-unpack", el).checked, delete: $("#o-unpackdel", el).checked };
     if (custom && !st.scan.program) bad("#o-scanprog", t("o.errScanner"), "scan");
     st.downloadDir = $("#o-dir", el).value.trim(); st.categoryFolders = $("#o-catf", el).checked; st.clipboardMonitor = $("#o-clip", el).checked;
     if (!st.downloadDir) bad("#o-dir", t("o.errDir"), "save");
@@ -4347,6 +4370,8 @@ function connect() {
       else if (n.kind === "quotaStop") { quotaDialog(); const m = t("n.quotaUsed"); note(m, "warn"); say(m, true); }
       else if (n.kind === "linkRenewed" || n.kind === "checkOk" || n.kind === "phonePaired") toast(n.text, 4000);
       else if (n.kind === "checkBad" || n.kind === "checkErr") toast(n.text, { ms: 8000, kind: "error" });
+      else if (n.kind === "unpacked") toast(n.text, { ms: 6000, action: { label: t("ctx.openUnpacked"), fn: () => api("action", { action: "openUnpacked", ids: [n.id] }) } });
+      else if (n.kind === "unpackErr") toast(n.text, { ms: 8000, kind: "error" });
     }
     S.lastSeq = Math.max(S.lastSeq, maxSeq);
     processPrompts(s.prompts);

@@ -100,7 +100,7 @@ No accounts, ads or telemetry. Saved passwords are encrypted, checksums are veri
 </tr>
 </table>
 
-**And more:** control from your phone on the same Wi-Fi, a site grabber, metalinks, FTP and FTPS, proxies and PAC scripts, an optional virus scan, a command line, full keyboard use and screen-reader support, and light and dark themes. The [user guide](docs/user-guide.md) covers all of it.
+**And more:** control from your phone on the same Wi-Fi, archives unpacked when they finish, a site grabber, metalinks, FTP and FTPS, proxies and PAC scripts, an optional virus scan, a command line, full keyboard use and screen-reader support, and light and dark themes. The [user guide](docs/user-guide.md) covers all of it.
 
 ## Download
 
