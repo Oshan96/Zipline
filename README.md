@@ -142,7 +142,8 @@ Zipline can tell you when there's a new version (it asks first), and the Windows
 | [Security](docs/user-guide.md#security) | How the window, the extension, the phone page and saved passwords are protected |
 | [Extension privacy](extension/PRIVACY.md) | What the browser extension reads, sends and keeps, and why |
 | [Development](docs/development.md) | The repository's layout, building from source and running the tests |
-| [Releasing](docs/releasing.md) | Versions, the release workflow, the packages and installers |
+| [Releasing](docs/releasing.md) | Versions, the release workflow, the packages and installers, signing |
+| [Store listing](docs/store-listing.md) | The extension's listing for the Chrome Web Store, Edge Add-ons and addons.mozilla.org |
 
 ## Build from source
 

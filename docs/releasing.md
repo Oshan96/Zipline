@@ -57,9 +57,53 @@ packaging/macos/make-dmg.sh           # on a Mac, afterwards: pkg/Zipline-macOS.
 - `ZL_PLATFORMS` builds only some platforms: `ZL_PLATFORMS="macos" packaging/package.sh` makes just the macOS packages.
 - The disk image needs macOS (`lipo`, `codesign`, `hdiutil`), so the workflow builds the macOS packages on a macOS runner (`ZL_PLATFORMS=macos`) and makes the image from them. The app gets an ad-hoc signature; it isn't signed with a Developer ID or notarized yet.
 
+## Signing the Windows files
+
+Windows warns before running a program that isn't signed ("Windows protected your PC"). The release workflow is ready to sign Zipline's Windows programs and its installer with [SignPath](https://about.signpath.io), which signs open-source projects for free through the [SignPath Foundation](https://signpath.org). Until SignPath is set up, it skips those steps and nothing is signed.
+
+**What SignPath Foundation asks of a project:** an OSI-approved licence (MIT), the source in a public repository, releases built by GitHub Actions on GitHub's own runners, files whose product name and version are set (`packaging/windows/mksyso.py` writes them into `Zipline.exe`; the installer has its own), and a code signing policy on the project's page (below). Each signing request for the release certificate is approved by hand on SignPath's site.
+
+**Setting it up:**
+
+1. Apply at [signpath.org](https://signpath.org) with this repository.
+2. In SignPath, once the project is accepted:
+   - Name the project `zipline` (or set the variable below), and link the GitHub trusted build system to this repository.
+   - Add two artifact configurations, pasted from `packaging/windows/signpath/`: `windows-programs` (the two `Zipline.exe` builds) and `windows-installer` (`Zipline-Windows-Setup.exe`).
+   - Use the signing policy `release-signing` (SignPath Foundation's certificate; `test-signing` signs with a test certificate, for trying it out).
+   - Add a CI user who may submit requests to that policy, and copy its API token.
+3. In this repository, under Settings → Secrets and variables → Actions:
+   - the variable `SIGNPATH_ORGANIZATION_ID` (SignPath's organization ID);
+   - the secret `SIGNPATH_API_TOKEN` (the CI user's token);
+   - if they differ from the defaults, the variables `SIGNPATH_PROJECT_SLUG` (`zipline`) and `SIGNPATH_POLICY_SLUG` (`release-signing`).
+4. Add the code signing policy below to the README.
+
+**What a release of `main` does then:**
+
+1. It builds the two `Zipline.exe` with `packaging/windows/build-exes.sh` and hands them to SignPath as a short-lived artifact. It waits up to an hour for them to come back signed, which leaves time for someone to approve the request.
+2. It packages the signed programs into the zips and the installer (`ZL_WIN_EXES=… packaging/package.sh`).
+3. It has the installer signed the same way.
+4. It checks every signature (`packaging/windows/signed.py`) and deletes the artifacts it handed over.
+
+The release notes then say the Windows files are signed. Pull requests and other branches aren't signed, so their previews stay unsigned. The installer's uninstaller isn't signed: NSIS writes it while it builds the installer. The files handed to SignPath use the account's artifact storage for a few minutes (about 25 MB). If the storage is full, signing fails and so does the release: delete old artifacts, then run the workflow again. The Mac app isn't signed with a Developer ID or notarized; SignPath only signs Windows files.
+
+**The code signing policy** for the README (SignPath Foundation's wording for the first line):
+
+```markdown
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+- Committers and reviewers: [the repository's contributors](https://github.com/Oshan96/Zipline/graphs/contributors)
+- Approvers: [Oshan96](https://github.com/Oshan96)
+
+Privacy: Zipline connects to other computers only for what its user asks it to do: the downloads themselves (and the
+services and torrent peers they involve), the proxy test in Options, and, if the user turns update checks on, a daily
+look at this repository's latest release on GitHub. It sends nothing else anywhere.
+```
+
 ## The browser extension in the stores
 
-Zipline's extension isn't listed in any store yet; users load it from the folder in their download. For a store release:
+Zipline's extension isn't listed in any store yet; users load it from the folder in their download. What to fill in for each store (the texts, the permissions' justifications, the privacy answers and the images in `assets/store/`) is in [store-listing.md](store-listing.md). For a store release:
 
 - **Chrome Web Store, Edge Add-ons:** `packaging/package.sh` also builds `pkg/ext/zipline-chrome-store.zip`, the Chrome extension without the `key` field (stores don't accept it). The extension's ID comes from the public key in `manifest.json`'s `key` field, so the source needs no secret: building, packaging and loading the folder never use the private key. It matters only if you want a store copy to keep that ID: run `ZL_EXT_KEY=/path/to/zipline-extension-key.pem packaging/package.sh 1.0` before the first Chrome Web Store upload and the key goes into the zip as `key.pem` (the older way Chrome documented for keeping an ID; it may no longer be honoured). Chrome's current way runs the other way round: upload, take the store's public key (Package → View public key) into `manifest.json`'s `key`, so unpacked copies get the store's ID. Whichever ID the store copy ends up with, Edge Add-ons included, add it to `chromeExtIDs` in `cmd/zipline/nativehost.go` and `ZL_EXT_IDS` in `web/extlink.js`, so the native messaging host lets it in. Keep the `.pem` file private and out of the repository: whoever has it can publish an extension with Zipline's ID.
-- **Firefox:** `packaging/sign-firefox.sh` has Mozilla sign the add-on for self-distribution (unlisted, `web-ext sign --channel=unlisted`), so regular Firefox installs it permanently. It needs Node.js and an addons.mozilla.org API key in `AMO_JWT_ISSUER` and `AMO_JWT_SECRET` (Developer Hub → Manage API Keys); the signed `.xpi` lands in `pkg/ext/signed/`. A listed add-on is submitted on addons.mozilla.org itself. Raise the version in both manifests for each new signing.
+- **Firefox:** `packaging/sign-firefox.sh` has Mozilla sign the add-on for self-distribution (unlisted, `web-ext sign --channel=unlisted`), so regular Firefox installs it permanently; `packaging/sign-firefox.sh --listed` submits it for listing on addons.mozilla.org instead, with the listing from `packaging/stores/amo-metadata.json`. Either needs Node.js and an addons.mozilla.org API key in `AMO_JWT_ISSUER` and `AMO_JWT_SECRET` (Developer Hub → Manage API Keys); a signed `.xpi` lands in `pkg/ext/signed/`. Mozilla takes each version once, so give the release's version: `packaging/sign-firefox.sh --listed 1.1.0`.

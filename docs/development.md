@@ -27,7 +27,7 @@ packaging/            building the release packages and installers
   macos/              the app bundle's Info.plist and the disk image
   linux/              the .deb's control file, the .rpm's spec and the menu entry
 tools/                checks and helpers: colour contrast, browser tests, screenshots
-docs/                 the user guide, this file and the release process
+docs/                 the user guide, this file, the release process and the extension's store listing
 .github/              the build-and-release workflow, issue and pull request templates
 ```
 

@@ -1,0 +1,21 @@
+{
+  "categories": [
+    "download-management"
+  ],
+  "summary": {
+    "en-US": "Send links, videos and downloads to the Zipline download manager app for fast, resumable, multi-connection downloads."
+  },
+  "description": {
+    "en-US": "Zipline Download Catcher connects your browser to Zipline, a free, open-source download manager for Windows, macOS and Linux. The extension finds what you want to download and hands it to the app. The app downloads it on many connections at once, resumes after a dropped connection or a restart, and checks the file.\n\nWhat it does:\n• Right-click a link, picture or video and choose \"Download with Zipline\", or hold Alt and click a link.\n• Lists the videos a page plays (HLS and DASH streams, plain video files, and players that fetch the picture and the sound separately) in its popup and on a Download button over the player. Zipline saves each as one MP4, with the quality you choose.\n• \"Download all links on this page\" lets you pick files from a page; \"Scan this site\" opens Zipline's site grabber, signed in as your browser is.\n• Optionally takes over the browser's own downloads (off until you turn it on), with sizes, file types and sites to leave to the browser.\n• Sends the cookies and headers of the page with each download, so files you're signed in to see download too.\n\nIt needs the Zipline app, from https://github.com/Oshan96/Zipline/releases. The app sets up the link to the browser by itself when it starts.\n\nZipline doesn't download from YouTube or from DRM-protected streaming services, and the extension doesn't offer their videos.\n\nNothing is collected or sent to anyone: the extension talks only to the Zipline app on your own computer. Privacy policy: https://github.com/Oshan96/Zipline/blob/main/extension/PRIVACY.md"
+  },
+  "homepage": {
+    "en-US": "https://github.com/Oshan96/Zipline"
+  },
+  "support_url": {
+    "en-US": "https://github.com/Oshan96/Zipline/issues"
+  },
+  "version": {
+    "license": "MIT",
+    "approval_notes": "The add-on needs the Zipline app (native messaging host app.zipline.host). Download it from https://github.com/Oshan96/Zipline/releases/latest (Windows: Zipline-Windows-Setup.exe; macOS: Zipline-macOS.dmg; Linux: the .deb, .rpm or tar.gz) and start it once: it registers the native messaging host for Firefox. The popup then says \"Connected\". Right-click any link and choose \"Download with Zipline\" (the app's Add dialog opens), or play a video on a page and use the popup's Download button. No account is needed. Nothing in the add-on is minified or generated; the source is https://github.com/Oshan96/Zipline/tree/main/extension."
+  }
+}

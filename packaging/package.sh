@@ -6,7 +6,8 @@
 # The version (1.0, 1.0.3) goes into the app (-X main.appVersion), the extensions' manifests and the
 # installers. Without one, it's appVersion from cmd/zipline/version.go. Releases get theirs from
 # .github/workflows/release.yml. ZL_PLATFORMS builds only some platforms (the release's macOS job builds
-# only macos, on a Mac).
+# only macos, on a Mac). ZL_WIN_EXES is a folder of Windows programs built already, by
+# packaging/windows/build-exes.sh, and signed since: they're packaged instead of new builds.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 V=${1:-$(packaging/version.sh)}
@@ -30,8 +31,11 @@ done
 S=$(mktemp -d) && cp -r $X/chrome/. $S/ && python3 -c "import json,sys; m=json.load(open(sys.argv[1])); m.pop('key',None); json.dump(m,open(sys.argv[1],'w'),indent=2)" $S/manifest.json && { [ -z "${ZL_EXT_KEY:-}" ] || cp "$ZL_EXT_KEY" $S/key.pem; } && (cd $S && zip -qr - .) > $X/zipline-chrome-store.zip && rm -rf $S
 addext() { mkdir -p "$1/extension-firefox"; cp -r $X/chrome "$1/extension"; cp -r $X/firefox/. "$1/extension-firefox/"; cp $X/zipline-firefox.xpi "$1/"; cp docs/user-guide.md "$1/USER-GUIDE.md"; cp LICENSE "$1/"; }
 if want windows; then
-  GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-H windowsgui $L" -o dist/Zipline-windows-x64.exe ./cmd/zipline
-  GOOS=windows GOARCH=arm64 go build -trimpath -ldflags "-H windowsgui $L" -o dist/Zipline-windows-arm64.exe ./cmd/zipline
+  if [ -n "${ZL_WIN_EXES:-}" ]; then
+    cp "$ZL_WIN_EXES/Zipline-windows-x64.exe" "$ZL_WIN_EXES/Zipline-windows-arm64.exe" dist/
+  else
+    packaging/windows/build-exes.sh "$V" dist # (with this version in their version info)
+  fi
   for A in x64 arm64; do D=pkg/Zipline-Windows-$A; mkdir -p $D; cp dist/Zipline-windows-$A.exe $D/Zipline.exe; addext $D; (cd pkg && zip -qr Zipline-Windows-$A.zip Zipline-Windows-$A); done
   # the Windows installer, next to the portable zips (NSIS: apt install nsis)
   if command -v makensis >/dev/null; then

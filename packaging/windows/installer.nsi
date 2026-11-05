@@ -42,7 +42,7 @@ VIAddVersionKey "ProductVersion" "${VERSION}"
 VIAddVersionKey "FileVersion" "${VERSION}"
 VIAddVersionKey "FileDescription" "Zipline Setup"
 VIAddVersionKey "CompanyName" "Zipline"
-VIAddVersionKey "LegalCopyright" "Zipline"
+VIAddVersionKey "LegalCopyright" "Copyright (c) 2026 Oshan. MIT License."
 
 !define MUI_ICON "${ROOT}/assets/icon.ico"
 !define MUI_UNICON "${ROOT}/assets/icon.ico"
