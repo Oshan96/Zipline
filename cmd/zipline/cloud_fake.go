@@ -7,8 +7,8 @@ import (
 	"regexp"
 )
 
-// A build for trying the cloud services against local stand-ins (go build -tags zlfake): the
-// services' addresses come from ZL_CLOUD_FAKE (a base address, each service under its own path).
+// A build for trying the cloud services (and Check for updates) against local stand-ins (go build -tags
+// zlfake): the services' addresses come from ZL_CLOUD_FAKE (a base address, each under its own path).
 // Release builds don't have this file.
 
 func init() {
@@ -27,4 +27,5 @@ func init() {
 	wetransferWeb = base + "/wetransfer"
 	pixeldrainAPI = base + "/pixeldrain"
 	catboxWeb, catboxFiles = base+"/catbox", []string{base + "/catbox-files"}
+	updateAPI, updateFrom, updatePage = base+"/github/latest", base+"/github/download/", base+"/github/releases/" // (Check for updates)
 }

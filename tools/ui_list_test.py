@@ -45,7 +45,8 @@ def make_list(datadir, n):
     with open(os.path.join(datadir, "downloads.json"), "w") as f:
         json.dump({"format": 2, "downloads": out}, f)
     with open(os.path.join(datadir, "settings.json"), "w") as f:
-        json.dump({"downloadDir": "/tmp/zl", "clipboardMonitor": False, "showCompleteDialog": False, "tray": False, "keepAwake": False, "earlyStart": False}, f)
+        json.dump({"downloadDir": "/tmp/zl", "clipboardMonitor": False, "showCompleteDialog": False, "tray": False, "keepAwake": False, "earlyStart": False,
+                   "updates": {"check": "off"}}, f)
 
 
 class App:
@@ -672,12 +673,40 @@ def test_batch_folder(pg):
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_update_ui(pg):
+    """A newer version shows in the status bar and its dialog; the one-time question saves the answer."""
+    fresh(pg)
+    title = ev(pg, """() => {
+        S.update = { current: "1.1.0", version: "9.9.9", notes: ["Unpack archives", "Pixeldrain links"], url: "https://github.com/x.deb", asset: "Zipline-Linux-x64.deb", page: "https://github.com/x" };
+        renderStatus();
+        const b = document.querySelector('[data-sb="update"]');
+        if (!b) return "no button";
+        const words = b.textContent;
+        b.click();
+        return words;
+    }""")
+    check(title == "Update to 9.9.9", f"status bar: {title!r}")
+    pg.wait_for_selector("dialog[open][data-key='update']")
+    got = ev(pg, """() => { const d = document.querySelector("dialog[open][data-key='update']");
+        return [d.querySelector('.t').textContent, d.querySelectorAll('.up-notes li').length, [...d.querySelectorAll('.dlg-f button')].map(b => b.textContent)]; }""")
+    check(got[0] == "Zipline 9.9.9 is available" and got[1] == 2 and "Download" in got[2] and "Update now" not in got[2], f"dialog: {got}")
+    close_dialogs(pg)
+    ev(pg, "askUpdates()")
+    pg.wait_for_selector("dialog[open][data-key='askupd']")
+    pg.click("dialog[open][data-key='askupd'] .dlg-f button:not(.primary)")  # Don't check
+    t = time.time()
+    while time.time() - t < 5 and ev(pg, "!!document.querySelector(\"dialog[open][data-key='askupd']\")"):
+        time.sleep(0.1)
+    check(api("settings", None)["updates"]["check"] == "off", "the answer was saved")
+
+
 def api(path, body):
-    req = urllib.request.Request(BASE + "/api/" + path, data=json.dumps(body).encode(), headers={"X-Token": SECRET, "Content-Type": "application/json"})
+    data = None if body is None else json.dumps(body).encode()  # (None: a GET)
+    req = urllib.request.Request(BASE + "/api/" + path, data=data, headers={"X-Token": SECRET, "Content-Type": "application/json"})
     return json.loads(NOPROXY.open(req).read())
 
 
-TESTS = [test_tab_order, test_menubar, test_context_menu, test_grid, test_headers, test_sidebar, test_shortcuts, test_mouse, test_responsive, test_live_updates, test_complete_window, test_batch_folder]
+TESTS = [test_tab_order, test_menubar, test_context_menu, test_grid, test_headers, test_sidebar, test_shortcuts, test_mouse, test_responsive, test_live_updates, test_complete_window, test_batch_folder, test_update_ui]
 
 
 def main():

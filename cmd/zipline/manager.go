@@ -72,6 +72,7 @@ type Settings struct {
 	Cap                DataCap         `json:"cap"`
 	Scan               ScanSettings    `json:"scan"`
 	Unpack             UnpackSettings  `json:"unpack"`
+	Updates            UpdateSettings  `json:"updates"`
 	Tray               bool            `json:"tray"`
 	Sites              []SiteRule      `json:"sites"`
 	SkipSites          []string        `json:"skipSites"` // the browser extension never takes downloads from these
@@ -183,6 +184,7 @@ type Manager struct {
 	notices    []Notice
 	seq        int64
 	quit       chan struct{}
+	upd        updater // the newest release, when checked (update.go)
 
 	planIn      bool // inside the free data hours (Options → Data plan)
 	planSaved   time.Time
@@ -351,6 +353,9 @@ func (l *dlList) UnmarshalJSON(b []byte) error {
 }
 
 func (m *Manager) normalizeSettings() {
+	if c := m.settings.Updates.Check; c != "on" && c != "off" {
+		m.settings.Updates.Check = "" // (asked in the window)
+	}
 	s := &m.settings
 	if p := s.Phone.Port; p != 0 && (p < 1024 || p > 65535 || p == 17890) {
 		s.Phone.Port = phonePort
@@ -1502,6 +1507,7 @@ type Snapshot struct {
 	OS           string      `json:"os"`
 	Alert        string      `json:"alert,omitempty"`
 	Power        PowerView   `json:"power"`
+	Update       *UpdateView `json:"update,omitempty"` // a newer Zipline, once checked
 }
 
 func (m *Manager) Snapshot(withSegs map[string]bool) Snapshot {
@@ -1514,6 +1520,7 @@ func (m *Manager) Snapshot(withSegs map[string]bool) Snapshot {
 		s.Net = netStats(m.settings.Multi)
 	}
 	s.Power = m.powerView()
+	s.Update = m.updateView()
 	m.trafficView(&s)
 	for _, q := range m.settings.Queues {
 		s.Queues = append(s.Queues, QView{ID: q.ID, Name: q.Name, Running: m.qRun[q.ID], Syncing: m.qSyncing[q.ID], Sync: q.Sync, Max: q.MaxConcurrent})

@@ -47,6 +47,17 @@ The app isn't signed with an Apple Developer ID or notarized yet, so the first t
 
 Install `secret-tool` (the `libsecret-tools` package on Debian and Ubuntu, `libsecret` on Fedora) so the key that protects saved passwords is kept in your desktop's password store (see [Security](#security)).
 
+### Updates
+
+The first time its window opens, Zipline asks whether to check for new versions. With checking on (Options → General → **Updates**), it asks GitHub for its latest release once a day; nothing about you or your downloads goes with the request, and GitHub sees only an address asking, as for any web page. **Check now** there, or Help → **Check for updates…**, asks at once whatever the setting.
+
+When there's a newer version, the status bar says **Update to …**, and its window lists what changed:
+
+- **The Windows installer's copy:** **Update now** downloads the installer from the release, checks it against the SHA-256 GitHub publishes for it (a file that doesn't match is never run), then Zipline closes, the installer updates it in place, and the new version opens. There's no administrator prompt.
+- **Any other copy** (a portable zip, the Mac's disk image, the `.deb`, `.rpm` or tar.gz): **Download** adds the right package to your downloads, to install as you did the first time.
+
+After an update, reload the extension in `chrome://extensions` (or restart the browser) so it picks up its new version too.
+
 ### Uninstall
 
 - **Windows:** the installer's copy uninstalls from **Settings → Apps**. That removes the program, its shortcuts and its registrations for magnet links, `.torrent` files and the browser extension (first, so no browser starts Zipline's helper again meanwhile). A running Zipline is asked to quit, and whatever still runs it a few seconds later is ended. It keeps the settings and download list unless you choose to remove them; files you downloaded are never touched. A portable copy is just its folder.
@@ -364,6 +375,7 @@ Zipline's window and the browser extension talk to the app only on `127.0.0.1:17
 - **Programs on this computer** (a second launch, the command line, the native messaging host) prove themselves with the secret in `run.json`, which only your user can read, and Zipline proves itself back, so a program that took its port gets nothing.
 - **The browser extension** comes through its native messaging host, or over HTTP once you've allowed it (signed requests; see [How the extension reaches Zipline](#how-the-extension-reaches-zipline)). Without either it only learns Zipline's version.
 - **Running programs:** the virus-scan program (and its arguments), which runs after every download, can only be changed in the window, which shows the program and asks before saving.
+- **Updates** run a program too, so only the window can start one, and only an installer from Zipline's own GitHub releases that matches the SHA-256 GitHub publishes for it.
 - **One Zipline per user:** a lock file in your data folder, not the port. If another program has port 17890, Zipline takes a free one (the native messaging link still finds it; the window says so).
 
 Two features listen on your network, each on its own port: torrent sharing, for other peers (Options → Torrents; TCP and UDP on one port, which Zipline asks your router to open unless you switch that off), and phone control, only while it's switched on (Options → Phone). Sign-in cookies and passwords only go to the site they came from, never to mirrors or other sites a download is spread across.

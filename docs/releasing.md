@@ -42,7 +42,7 @@ The release notes start with a download table and list the pull requests merged 
 | `Zipline-Linux-x64.tar.gz` | The Linux program on its own |
 | `Zipline-source.zip` | The source |
 
-Every package carries the browser extensions (`extension`, `extension-firefox`, `zipline-firefox.xpi`), the [user guide](user-guide.md) as `USER-GUIDE.md` and the `LICENSE`. The names have no version in them, so `https://github.com/Oshan96/Zipline/releases/latest/download/<file>` always points at the newest.
+Every package carries the browser extensions (`extension`, `extension-firefox`, `zipline-firefox.xpi`), the [user guide](user-guide.md) as `USER-GUIDE.md` and the `LICENSE`. The names have no version in them, so `https://github.com/Oshan96/Zipline/releases/latest/download/<file>` always points at the newest. Zipline's own update check (`cmd/zipline/update.go`) finds its file by these names too and takes it only from this repository's releases, checked against the SHA-256 GitHub publishes for each file, so keep the names as they are. **Update now** runs the installer with `/S /RUN`: silently, starting Zipline again when it's done.
 
 ## Building the packages yourself
 

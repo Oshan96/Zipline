@@ -54,6 +54,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("/api/queue", s.auth(s.queue))
 	mux.HandleFunc("/api/power", s.auth(s.powerH))
 	mux.HandleFunc("/api/settings", s.auth(s.guardSettings(s.settingsH)))
+	mux.HandleFunc("/api/update", s.auth(s.updateH))
 	mux.HandleFunc("/api/props", s.auth(s.props))
 	mux.HandleFunc("/api/limit", s.auth(s.limit))
 	mux.HandleFunc("/api/profile", s.auth(s.profileH))

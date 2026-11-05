@@ -204,6 +204,7 @@ function menuDefs() {
       menuItem(t("menu.shortcuts"), "", () => shortcutsDialog()),
       menuItem(t("menu.cli"), "", () => cliDialog()),
       menuItem(t("menu.diagnostics"), "", () => diagDialog()),
+      menuItem(t("menu.checkUpdates"), "", () => checkUpdates(true)),
       menuItem(t("menu.about"), "", () => aboutDialog()),
     ]],
   ];
@@ -1071,7 +1072,7 @@ function renderStatus() {
   patchHTML($("#sb-main"),
     `<span>${ht("bar.downloading", { n: active })}</span><span class="opt">${ht("bar.connections", { n: conns })}</span><span class="opt">${ht("bar.unfinished", { n: unf })}</span>` +
     `<span class="grow"></span>${powerStatus()}<span title="${esc(S.queues.filter(qBusy).map(q => q.name).join(", "))}"><span class="dot ${S.queueRunning ? "on" : ""}"></span>${queueStatusText()}</span>` +
-    capStatus() + quotaStatus() + planStatus() + upStatus() + profileStatus() +
+    updateStatus() + capStatus() + quotaStatus() + planStatus() + upStatus() + profileStatus() +
     `<span class="opt">${S.limitOn ? ht("bar.limiterOn", { rate: fmtKBps(S.limitKB) }) : ht("bar.limiterOff")}</span><span>${ht("bar.total", { speed: fmtSpeed(S.totalSpeed, true) })}</span>`);
   // a hold-up worth saying out loud, once each time it starts
   const cap = capHeld();
@@ -1094,6 +1095,12 @@ function patchHTML(el, html) {
     } else el.replaceChild(n, c);
   });
   cur.slice(next.length).forEach(c => c.remove());
+}
+// updateStatus offers a newer Zipline, once one is known (update.go).
+function updateStatus() {
+  const u = S.update;
+  if (!u || !u.version) return "";
+  return `<button class="sb-btn sb-warn" data-sb="update" title="${te("up.title", { version: u.version })}">${ht("bar.update", { version: u.version })}</button>`;
 }
 // upStatus shows uploading to other peers while torrents run or share.
 function upStatus() {
@@ -2867,6 +2874,10 @@ async function optionsDialog(tab = "general", focus = "") {
         <label class="radio"><input type="radio" name="o-start" value="resume"><div><b>${te("o.startResume")}</b><div class="hint">${te("o.startResumeHint")}</div></div></label>
         <label class="radio"><input type="radio" name="o-start" value="paused"><div><b>${te("o.startPaused")}</b><div class="hint">${te("o.startPausedHint")}</div></div></label>
       </div>
+      <div class="section-title"><span>${te("o.updTitle")}</span></div>
+      <label class="chk"><input type="checkbox" id="o-upd"> ${te("o.upd")}</label>
+      <div class="hint indent-chk">${te("o.updHint")}</div>
+      <div class="inline indent-chk"><button class="btn sm" id="o-updnow" type="button">${te("o.updNow")}</button><span class="hint" id="o-updst" role="status"></span></div>
     </div>
     <div class="pane" data-p="conn">
       ${field(te("o.conns"), `<select class="inp fit" id="o-conns">${[1, 2, 4, 6, 8, 12, 16, 24, 32].map(n => `<option>${n}</option>`).join("")}</select>`, { hint: te("o.connsHint") })}
@@ -3126,6 +3137,11 @@ async function optionsDialog(tab = "general", focus = "") {
   }).catch(() => {});
   el._assoc = () => assocWas;
   $("#o-prog", el).checked = st.showProgressDialog; $("#o-done", el).checked = st.showCompleteDialog; $("#o-early", el).checked = st.earlyStart !== false;
+  const updWas = (st.updates && st.updates.check) || "";
+  $("#o-upd", el).checked = updWas === "on";
+  const updState = () => { const u = S.update; $("#o-updst", el).textContent = u && u.version ? t("up.title", { version: u.version }) : u && u.checked ? t("o.updLast", { when: fmtDate(new Date(u.checked).toISOString()) }) : ""; };
+  $("#o-updnow", el).onclick = async () => { const b = $("#o-updnow", el); b.disabled = true; try { await checkUpdates(true); } finally { b.disabled = false; updState(); } };
+  updState();
   $("#o-awake", el).checked = st.keepAwake !== false;
   $(`input[name=o-start][value=${st.startPaused ? "paused" : "resume"}]`, el).checked = true;
   const keys = st.keys || {};
@@ -3436,6 +3452,7 @@ async function optionsDialog(tab = "general", focus = "") {
   };
   async function save(el) {
     st.showProgressDialog = $("#o-prog", el).checked; st.showCompleteDialog = $("#o-done", el).checked; st.earlyStart = $("#o-early", el).checked;
+    if ($("#o-upd", el).checked !== (updWas === "on")) st.updates = { check: $("#o-upd", el).checked ? "on" : "off" }; // (left as it was: still asked once)
     st.keepAwake = $("#o-awake", el).checked; st.startPaused = $("input[name=o-start]:checked", el).value === "paused";
     st.keys = { zipline: $("#o-kzip", el).value, browser: $("#o-kbr", el).value };
     if (st.keys.zipline !== "off" && st.keys.zipline === st.keys.browser) bad("#o-kbr", t("o.errKeys"), "integration");
@@ -4224,6 +4241,55 @@ function batchDialog() {
   $("#b-browse", el).onclick = () => pickFolder($("#b-dir", el));
 }
 
+// ---- Updates (update.go): asked about once, then Options → General; the window alone installs one.
+async function setUpdateCheck(check) {
+  const st = await api("settings"); st.updates = { ...(st.updates || {}), check }; S.settings = await api("settings", st);
+}
+function askUpdates() {
+  dialog({
+    title: t("up.askTitle"), width: 460, key: "askupd", modal: false, focus: "dialog",
+    body: `<p style="margin-top:0">${te("up.askBody")}</p>`,
+    buttons: [
+      { label: t("up.askYes"), primary: true, busy: t("btn.saving"), fn: async el => { await setUpdateCheck("on"); el.close(); checkUpdates(false); } },
+      { label: t("up.askNo"), busy: t("btn.saving"), fn: async el => { await setUpdateCheck("off"); el.close(); } },
+    ],
+  });
+}
+// checkUpdates asks GitHub now; asked for by hand, it always answers (the dialog, or "the newest")
+async function checkUpdates(byHand) {
+  const r = await api("update", { action: "check" }).catch(e => ({ error: errText(e) }));
+  if (r.version) { S.update = r; renderStatus(); if (byHand) updateDialog(); }
+  else if (byHand) toast(r.error ? t("up.checkFailed", { error: r.error }) : t("up.newest", { current: r.current || APP_VERSION }), { ms: 6000, kind: r.error ? "error" : "" });
+  return r;
+}
+function updateDialog() {
+  const u = S.update; if (!u || !u.version) return;
+  const el = dialog({
+    title: t("up.title", { version: u.version }), width: 520, key: "update",
+    body: `<div id="up-body"></div>`,
+    buttons: [
+      ...(u.install ? [{ label: t("up.updateNow"), primary: true, id: "up-go", fn: async el => {
+        const r = await api("update", { action: "install" });
+        if (r.error) throw new Error(r.error);
+        draw();
+      } }] : u.url ? [{ label: t("up.download"), primary: true, fn: el => { el.close(); fileInfoDialog(u.url); } }] : []),
+      { label: t("up.notes"), fn: () => api("update", { action: "page" }) },
+      { label: t("btn.close"), cancel: true, fn: el => el.close() },
+    ],
+  });
+  function draw() {
+    const v = S.update || u, busy = v.state === "downloading" || v.state === "installing";
+    $("#up-body", el).innerHTML = `<p style="margin-top:0">${te("up.current", { current: v.current })}</p>` +
+      (v.notes && v.notes.length ? `<div class="section-title" style="margin-top:0"><span>${te("up.changes")}</span></div><ul class="up-notes">${v.notes.map(n => `<li>${esc(n)}</li>`).join("")}</ul>` : "") +
+      `<p class="hint">${te(v.install ? "up.installHint" : v.url ? "up.downloadHint" : "up.noAsset", { file: v.asset || "" })}</p>` +
+      (v.state === "downloading" ? `<p role="status"><span class="spin"></span>${te("up.downloading", { pct: fmtPct(v.pct || 0, 0) })}</p>` : "") +
+      (v.state === "installing" ? `<p role="status"><span class="spin"></span>${te("up.installing")}</p>` : "") +
+      (v.state === "failed" ? `<p class="err">${te("up.failed", { error: v.error || "" })}</p>` : "");
+    const go = $("#up-go", el); if (go) go.disabled = busy;
+  }
+  el._draw = draw; draw();
+}
+
 function aboutDialog() {
   dialog({ title: t("menu.about"), width: 420, key: "about",
     body: `<div style="display:flex;gap:14px;align-items:center">${I.logo.replace(/width="20" height="20"/, 'width="56" height="56"')}<div><div style="font-size:18px;font-weight:600">${te("app.title")}</div><div class="hint" style="margin:2px 0 0">${te("about.version", { version: APP_VERSION })}</div></div></div>
@@ -4330,6 +4396,7 @@ function connect() {
     S.cap = s.cap; S.os = s.os;
     S.early = new Map((s.early || []).map(d => [d.id, d]));
     S.plan = s.plan; S.polite = s.polite; S.net = s.net || null; S.power = s.power; S.profile = s.profile; S.quota = s.quota;
+    S.update = s.update || null; if (S.update && S.update.state === "installing") S.updating = true;
     if (s.alert && !S.alertShown) { S.alertShown = true; toast(s.alert, { ms: 12000, kind: "error" }); api("alert/seen", {}).catch(() => {}); }
     if (S.filter.startsWith("q:") && !S.queues.some(q => "q:" + q.id === S.filter)) S.filter = "all";
     for (const id of [...S.selected]) if (!S.byId.has(id)) S.selected.delete(id);
@@ -4372,13 +4439,15 @@ function connect() {
       else if (n.kind === "checkBad" || n.kind === "checkErr") toast(n.text, { ms: 8000, kind: "error" });
       else if (n.kind === "unpacked") toast(n.text, { ms: 6000, action: { label: t("ctx.openUnpacked"), fn: () => api("action", { action: "openUnpacked", ids: [n.id] }) } });
       else if (n.kind === "unpackErr") toast(n.text, { ms: 8000, kind: "error" });
+      else if (n.kind === "update") toast(n.text, { ms: 10000, action: { label: t("btn.show"), fn: () => updateDialog() } });
+      else if (n.kind === "updateErr") { S.updating = false; toast(n.text, { ms: 10000, kind: "error" }); }
     }
     S.lastSeq = Math.max(S.lastSeq, maxSeq);
     processPrompts(s.prompts);
   };
   es.onerror = () => {
     clearTimeout(lostTimer);
-    lostTimer = setTimeout(() => { if (!$("#lost")) toast(t("n.lost"), { id: "lost", sticky: true, kind: "error" }); }, 2500);
+    lostTimer = setTimeout(() => { if (!$("#lost")) toast(t(S.updating ? "up.restarting" : "n.lost"), { id: "lost", sticky: true, kind: S.updating ? "" : "error" }); }, 2500);
   };
 }
 
@@ -4533,10 +4602,11 @@ buildMenus(); buildToolbar(); buildHead();
 // the status bar's buttons (it's redrawn often, so one listener for all)
 $("#statusbar").addEventListener("click", e => {
   const b = e.target.closest("[data-sb]");
-  if (b && b.dataset.sb === "profile") profileMenu(b); else if (b && b.dataset.sb === "quota") quotaDialog();
+  if (b && b.dataset.sb === "profile") profileMenu(b); else if (b && b.dataset.sb === "quota") quotaDialog(); else if (b && b.dataset.sb === "update") updateDialog();
 });
 api("settings").then(s => {
   S.settings = s;
+  if (!(s.updates && s.updates.check)) askUpdates();
   let theme = ""; try { theme = localStorage.getItem("zl.theme") || ""; } catch {}
   if ((s.theme || "") !== theme) { s.theme = theme; api("theme", { theme }).catch(() => {}); } // (a theme chosen before the app kept it)
 });

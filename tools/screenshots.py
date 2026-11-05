@@ -118,7 +118,7 @@ class App:
         os.makedirs(data)
         with open(os.path.join(data, "settings.json"), "w") as f:
             json.dump({"downloadDir": os.path.join(self.home, "Downloads"), "clipboardMonitor": False, "showCompleteDialog": False,
-                       "tray": False, "keepAwake": False, "earlyStart": False, "maxConcurrent": 6,
+                       "tray": False, "keepAwake": False, "earlyStart": False, "maxConcurrent": 6, "updates": {"check": "off"},
                        "proxy": {"mode": "manual", "url": proxy}}, f)
         self.bin = binary
         self.p = subprocess.Popen([binary, "--nowindow"], env=self.env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

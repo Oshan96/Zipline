@@ -112,6 +112,8 @@ Get the newest version from the [releases page](https://github.com/Oshan96/Zipli
 | **macOS** 11 or later | [Zipline-macOS.dmg](https://github.com/Oshan96/Zipline/releases/latest/download/Zipline-macOS.dmg)<br><sub>Apple silicon and Intel</sub> | [Apple silicon](https://github.com/Oshan96/Zipline/releases/latest/download/Zipline-macOS-apple-silicon.zip) · [Intel](https://github.com/Oshan96/Zipline/releases/latest/download/Zipline-macOS-intel.zip) |
 | **Linux** x64 | [Zipline-Linux-x64.deb](https://github.com/Oshan96/Zipline/releases/latest/download/Zipline-Linux-x64.deb)<br><sub>Debian, Ubuntu and their relatives</sub><br>[Zipline-Linux-x64.rpm](https://github.com/Oshan96/Zipline/releases/latest/download/Zipline-Linux-x64.rpm)<br><sub>Fedora, openSUSE and their relatives</sub> | [tar.gz](https://github.com/Oshan96/Zipline/releases/latest/download/Zipline-Linux-x64.tar.gz) |
 
+Zipline can tell you when there's a new version (it asks first), and the Windows installer's copy updates itself in one click.
+
 > [!NOTE]
 > Zipline isn't code-signed yet, so Windows SmartScreen and macOS Gatekeeper ask before running it the first time. The user guide's [Install](docs/user-guide.md#install) section shows how to let it run.
 
