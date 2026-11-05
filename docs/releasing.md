@@ -4,7 +4,7 @@ Every merge to `main` is tested, built and published as a [GitHub release](https
 
 ## Versions
 
-`appVersion` in `cmd/zipline/version.go` holds the major and minor version (`1.0`). Each release takes the next patch number for them: `v1.0.0`, `v1.0.1`, `v1.0.2`, …
+`appVersion` in `cmd/zipline/version.go` holds the major and minor version (`1.1`). Each release takes the next patch number for them: `v1.1.0`, `v1.1.1`, `v1.1.2`, …
 
 - **A normal change** needs nothing: its merge releases the next patch version.
 - **A new series:** raise `appVersion` (to `1.1`, or `2.0`) in the pull request, and its merge releases `v1.1.0`.

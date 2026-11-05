@@ -13,7 +13,7 @@ Zipline is a standalone download manager in the style of IDM. It's one Go progra
 ## Ground rules
 
 - **Go standard library only.** No third-party modules, no cgo. Don't edit `go.mod` (Go 1.24.7).
-- **Version:** `appVersion` in `version.go` holds major.minor (`1.0`). Releases add the patch number themselves (see Releases). Raise it only for a new series. Keep `MIN_APP` (`extension/link.js`) and `minExtVersion` (`extlink.go`) as they are unless the app and extension stop working together.
+- **Version:** `appVersion` in `version.go` holds major.minor (`1.1`). Releases add the patch number themselves (see Releases). Raise it only for a new series. Keep `MIN_APP` (`extension/link.js`) and `minExtVersion` (`extlink.go`) as they are unless the app and extension stop working together.
 - **No secrets in the repository.** The extension's private key (`.pem`) and the AMO and store credentials stay out of it (`.gitignore`). The extension ID comes from the public `key` in `extension/manifest.json`.
 - **Keep the docs true.** Update `README.md` and `docs/user-guide.md` in the same change as any feature, limitation or behaviour you change.
 - **Deferred ("Later"):** leave these alone unless asked:
