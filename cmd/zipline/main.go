@@ -120,6 +120,7 @@ func main() {
 	go registerNativeHost(dataDir) // the browsers' native-messaging host is this program (nmregister.go)
 	startTray(m)
 	go m.keepAwakeLoop() // (started here, not by the manager: tests never keep the computer awake)
+	go m.updateLoop()    // (likewise: tests never ask GitHub)
 
 	silentOnly := !req.empty() && (req.Silent || len(req.URLs) == 0)
 	if !req.empty() {

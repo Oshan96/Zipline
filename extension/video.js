@@ -140,7 +140,7 @@
       b.title = c.url;
       t.append(el("span", "n", c.title));
       if (meta) t.append(el("span", "m", meta));
-      b.append(el("span", "tag", c.kind === "hls" ? "HLS" : c.kind === "dash" ? "DASH" : c.kind === "audio" ? "Audio" : "File"), t);
+      b.append(el("span", "tag", c.kind === "hls" ? "HLS" : c.kind === "dash" ? "DASH" : c.kind === "split" ? "Video" : c.kind === "audio" ? "Audio" : "File"), t);
       b.onclick = ev => { ev.stopPropagation(); sendOne(c.url); };
       menu.append(b);
     }

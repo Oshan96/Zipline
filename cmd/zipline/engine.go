@@ -115,6 +115,7 @@ type Download struct {
 	SyncNote  string            `json:"syncNote,omitempty"`
 	SyncSig   string            `json:"syncSig,omitempty"`   // a stream's playlist fingerprint (sync queues)
 	Kind      string            `json:"kind,omitempty"`      // "" = plain file, "hls" = video stream
+	Split     []string          `json:"split,omitempty"`     // a video whose player fetched its picture and sound separately: those files (split.go)
 	Variant   int               `json:"variant,omitempty"`   // HLS: chosen bandwidth (0 = best)
 	VarRes    string            `json:"varRes,omitempty"`    // HLS: the chosen quality's resolution, codecs and frame rate
 	VarCodecs string            `json:"varCodecs,omitempty"` // (bandwidth alone can't tell H.264 and HEVC apart)
@@ -161,6 +162,13 @@ type Download struct {
 	StreamPick
 	Extra []*TrackPart `json:"extra,omitempty"`
 	Marks partMarks    `json:"marks,omitempty"`
+
+	// Unpacking it when it's done (an archive; unpack.go): its own choice ("" = follow the settings,
+	// "on", "off"), how it went, and the folder it went into.
+	Unpack      string `json:"unpack,omitempty"`
+	UnpackState string `json:"unpackState,omitempty"`
+	UnpackNote  string `json:"unpackNote,omitempty"`
+	UnpackDir   string `json:"unpackDir,omitempty"`
 
 	mu       sync.Mutex
 	done     int64 // atomic
@@ -848,6 +856,9 @@ func (m *Manager) announceDone(d *Download) {
 	if m.shouldScan(d) {
 		d.ScanState, d.ScanNote = "waiting", "Waiting to scan"
 		go m.scanFile(d)
+	}
+	if m.shouldUnpack(d) && !(d.Check != nil && d.Check.State == "bad") {
+		m.queueUnpack(d) // (after the scan, when there is one)
 	}
 	if d.Private {
 		m.forgetPrivate(d) // (the file stays)

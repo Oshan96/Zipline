@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SignPath artifact configuration "windows-programs": the two Zipline.exe builds, as the release
+     workflow hands them over (a GitHub artifact is a zip). Paste it into the SignPath project
+     (docs/releasing.md → Signing the Windows files). -->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <zip-file>
+    <pe-file path="Zipline-windows-x64.exe" product-name="Zipline" product-version="1.*">
+      <authenticode-sign />
+    </pe-file>
+    <pe-file path="Zipline-windows-arm64.exe" product-name="Zipline" product-version="1.*">
+      <authenticode-sign />
+    </pe-file>
+  </zip-file>
+</artifact-configuration>

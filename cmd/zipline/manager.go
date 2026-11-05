@@ -20,6 +20,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"zipline/internal/unpack"
 )
 
 type Category struct {
@@ -69,6 +71,8 @@ type Settings struct {
 	Proxy              ProxySettings   `json:"proxy"`
 	Cap                DataCap         `json:"cap"`
 	Scan               ScanSettings    `json:"scan"`
+	Unpack             UnpackSettings  `json:"unpack"`
+	Updates            UpdateSettings  `json:"updates"`
 	Tray               bool            `json:"tray"`
 	Sites              []SiteRule      `json:"sites"`
 	SkipSites          []string        `json:"skipSites"` // the browser extension never takes downloads from these
@@ -139,6 +143,7 @@ type Prompt struct {
 	Source  string            `json:"source"`
 	Title   string            `json:"title,omitempty"` // page title, used to name video streams
 	Kind    string            `json:"kind,omitempty"`  // "" = one link, "links" = page links to pick from
+	Split   []string          `json:"split,omitempty"` // a video whose picture and sound are separate files (split.go)
 	JobID   string            `json:"jobId,omitempty"`
 	Dir     string            `json:"dir,omitempty"` // preset save folder (command line)
 	QueueID string            `json:"queueId,omitempty"`
@@ -180,6 +185,7 @@ type Manager struct {
 	notices    []Notice
 	seq        int64
 	quit       chan struct{}
+	upd        updater // the newest release, when checked (update.go)
 
 	planIn      bool // inside the free data hours (Options → Data plan)
 	planSaved   time.Time
@@ -275,6 +281,10 @@ func NewManager(dataDir string) *Manager {
 		if d.ScanState == "scanning" || d.ScanState == "waiting" {
 			d.ScanState, d.ScanNote = "", ""
 		}
+		if d.UnpackState == "unpacking" || d.UnpackState == "waiting" { // Zipline closed meanwhile: Unpack now does it again
+			d.UnpackState, d.UnpackNote = "", ""
+			os.RemoveAll(unpack.TempDir(d.path()))
+		}
 		if d.LegacyQ && d.Queue == "" {
 			d.Queue = "main"
 		}
@@ -344,6 +354,9 @@ func (l *dlList) UnmarshalJSON(b []byte) error {
 }
 
 func (m *Manager) normalizeSettings() {
+	if c := m.settings.Updates.Check; c != "on" && c != "off" {
+		m.settings.Updates.Check = "" // (asked in the window)
+	}
 	s := &m.settings
 	if p := s.Phone.Port; p != 0 && (p < 1024 || p > 65535 || p == 17890) {
 		s.Phone.Port = phonePort
@@ -577,6 +590,7 @@ type AddReq struct {
 	Mirrors  []string          `json:"mirrors"`  // other addresses for the same file
 	Checksum string            `json:"checksum"` // a checksum to check the file against (as pasted)
 	Meta     bool              `json:"meta"`     // URL is a metalink
+	Split    []string          `json:"split"`    // a video whose player fetched its picture and sound separately (split.go)
 	MetaFile int               `json:"metaFile"` // which of its files (-1 = all)
 
 	LiveFrom  string `json:"liveFrom"`  // a live event stream: "start" records it from its beginning, else from now
@@ -628,6 +642,9 @@ func (m *Manager) Add(r AddReq) *Download {
 		d.Category = m.categoryFor(d.FileName)
 	}
 	d.Mirrors = cleanMirrors(r.Mirrors, d.URL)
+	if s := cleanSplit(r.Split); len(s) > 0 {
+		d.Split, d.Kind, d.Mirrors = s, "hls", nil
+	}
 	d.Check, d.Pieces = r.check, r.pieces
 	d.LiveFrom, d.StopAfter = r.LiveFrom, max(r.StopAfter, 0)
 	if c, err := parseChecksum(r.Checksum, d.FileName); err == nil && c != nil {
@@ -1459,6 +1476,12 @@ type DLView struct {
 	PiecesBad int `json:"piecesBad,omitempty"`
 
 	Private bool `json:"private,omitempty"` // from a private window: leaves the list once finished
+
+	// unpacking an archive when it's done (unpack.go)
+	Unpack      string `json:"unpack,omitempty"`
+	UnpackState string `json:"unpackState,omitempty"`
+	UnpackNote  string `json:"unpackNote,omitempty"`
+	UnpackDir   string `json:"unpackDir,omitempty"`
 }
 
 type QView struct {
@@ -1489,6 +1512,7 @@ type Snapshot struct {
 	OS           string      `json:"os"`
 	Alert        string      `json:"alert,omitempty"`
 	Power        PowerView   `json:"power"`
+	Update       *UpdateView `json:"update,omitempty"` // a newer Zipline, once checked
 }
 
 func (m *Manager) Snapshot(withSegs map[string]bool) Snapshot {
@@ -1501,6 +1525,7 @@ func (m *Manager) Snapshot(withSegs map[string]bool) Snapshot {
 		s.Net = netStats(m.settings.Multi)
 	}
 	s.Power = m.powerView()
+	s.Update = m.updateView()
 	m.trafficView(&s)
 	for _, q := range m.settings.Queues {
 		s.Queues = append(s.Queues, QView{ID: q.ID, Name: q.Name, Running: m.qRun[q.ID], Syncing: m.qSyncing[q.ID], Sync: q.Sync, Max: q.MaxConcurrent})
@@ -1519,6 +1544,7 @@ func (m *Manager) Snapshot(withSegs map[string]bool) Snapshot {
 		}
 		v.TryAgain = m.retryAt(d)
 		v.Private = d.Private
+		v.Unpack, v.UnpackState, v.UnpackNote, v.UnpackDir = d.Unpack, d.UnpackState, d.UnpackNote, d.UnpackDir
 		v.Move = moveView(d.ID)
 		if d.running && d.Status == StDownloading && d.Kind == "" {
 			v.Retrying = d.reconnecting()

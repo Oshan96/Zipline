@@ -1,8 +1,9 @@
 # Zipline Download Catcher: privacy
 
 The extension hands links, videos and downloads from your browser to the Zipline app **on the same
-computer**. It talks only to that app, at `http://127.0.0.1:17890` (an address other computers can't
-reach). It has no server of its own, sends nothing to its makers or anyone else, shows no ads, keeps
+computer**. It talks only to that app: through the browser's native messaging link to Zipline's own
+helper program, or, in a browser you paired in Zipline's window, at `http://127.0.0.1:17890` (an address
+other computers can't reach). It has no server of its own, sends nothing to its makers or anyone else, shows no ads, keeps
 no statistics and loads no code from the internet. Nothing leaves your computer through the extension;
 the Zipline app then downloads the files from the sites they're on, as your browser would.
 

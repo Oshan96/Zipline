@@ -36,6 +36,14 @@ func moreCloudService(u *url.URL, h string) string {
 		if wetransferLink(u) {
 			return "WeTransfer"
 		}
+	case pixeldrainHost(h):
+		if kind, _, _ := pixeldrainLink(u); kind != "" {
+			return "Pixeldrain"
+		}
+	case catboxHost(h):
+		if catboxAlbum(u) != "" {
+			return "Catbox"
+		}
 	}
 	return ""
 }
@@ -53,6 +61,10 @@ func resolveMoreCloud(ctx context.Context, d *Download, raw string) (string, err
 		return resolveMediaFire(ctx, raw)
 	case "WeTransfer":
 		return resolveWeTransfer(ctx, raw)
+	case "Pixeldrain":
+		return resolvePixeldrain(ctx, raw)
+	case "Catbox": // (an album: its files are ordinary links)
+		return "", permanentErr{errCloudFolder}
 	}
 	return raw, nil
 }

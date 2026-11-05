@@ -123,6 +123,17 @@ func TestMoreCloudLinksRecognised(t *testing.T) {
 		"https://wetransfer.com/downloads/0123abcd/rcpt99/4567ef":                        "WeTransfer",
 		"https://acme.wetransfer.com/downloads/0123abcd/4567ef":                          "WeTransfer",
 		"https://wetransfer.com/pricing":                                                 "",
+		"https://pixeldrain.com/u/aBc12345":                                              "Pixeldrain",
+		"https://pixeldrain.com/api/file/aBc12345":                                       "Pixeldrain",
+		"https://pixeldrain.com/l/List9xyz":                                              "Pixeldrain",
+		"https://pixeldrain.com/l/List9xyz#item=3":                                       "Pixeldrain",
+		"https://pixeldrain.com/d/Bucket1/Music%20Folder":                                "Pixeldrain",
+		"https://pixeldrain.com/u/":                                                      "",
+		"https://pixeldrain.com/d/Bucket1/../../etc":                                     "",
+		"https://pixeldrain.com/":                                                        "",
+		"https://catbox.moe/c/ab12cd":                                                    "Catbox",
+		"https://files.catbox.moe/ab12cd.jpg":                                            "",
+		"https://catbox.moe/":                                                            "",
 	}
 	for u, want := range cases {
 		if got := cloudService(u); got != want {

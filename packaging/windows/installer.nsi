@@ -6,7 +6,8 @@
 ; It installs for the current user only, so there is no administrator prompt. The default folder is
 ; %LOCALAPPDATA%\Programs\Zipline, and the build matches the computer (x64 or Arm64). It adds a Start
 ; menu shortcut, an optional desktop shortcut and an entry in Settings > Apps that uninstalls it.
-; Installing again updates in place: a running Zipline is asked to quit first. Uninstalling keeps
+; Installing again updates in place: a running Zipline is asked to quit first (and /S /RUN, which
+; Zipline's Update now uses, starts the new one afterwards). Uninstalling keeps
 ; the settings and download list unless you choose to remove them; downloaded files are never touched.
 
 Unicode true
@@ -41,7 +42,7 @@ VIAddVersionKey "ProductVersion" "${VERSION}"
 VIAddVersionKey "FileVersion" "${VERSION}"
 VIAddVersionKey "FileDescription" "Zipline Setup"
 VIAddVersionKey "CompanyName" "Zipline"
-VIAddVersionKey "LegalCopyright" "Zipline"
+VIAddVersionKey "LegalCopyright" "Copyright (c) 2026 Oshan. MIT License."
 
 !define MUI_ICON "${ROOT}/assets/icon.ico"
 !define MUI_UNICON "${ROOT}/assets/icon.ico"
@@ -143,6 +144,17 @@ SectionEnd
 Section "Desktop shortcut" SecDesktop
   CreateShortcut "$DESKTOP\Zipline.lnk" "$INSTDIR\Zipline.exe"
 SectionEnd
+
+; /RUN starts Zipline once it's installed: Zipline's own Update now runs this installer silently
+; (/S /RUN) and quits, and the new version opens in its place.
+Function .onInstSuccess
+  ${GetParameters} $0
+  ClearErrors
+  ${GetOptions} $0 "/RUN" $1
+  IfErrors done
+  Exec '"$INSTDIR\Zipline.exe"'
+  done:
+FunctionEnd
 
 Section "Uninstall"
   ; first, so a browser can't start Zipline's helper again while it's being removed

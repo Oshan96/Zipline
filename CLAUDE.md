@@ -5,19 +5,19 @@ Zipline is a standalone download manager in the style of IDM. It's one Go progra
 ## Layout
 
 - `cmd/zipline/`: the program (`package main`). File names below without a folder are here.
-- `internal/<name>/`: code that stands on its own, without the download manager (`bencode`, `filename`, `httpauth`, `pac`, `psl`, `qr`, `quickxor`, `sitemap`, `utp`). Each package has its own tests. New code that needs nothing from `Manager`, `Download` or the settings goes in a package here.
+- `internal/<name>/`: code that stands on its own, without the download manager (`bencode`, `filename`, `httpauth`, `mediahead`, `pac`, `psl`, `qr`, `quickxor`, `sitemap`, `unpack`, `utp`). Each package has its own tests. New code that needs nothing from `Manager`, `Download` or the settings goes in a package here.
 - `web/`: the window and the phone page; `web/web.go` embeds them for the program.
 - `extension/`: the browser extension. `assets/`: the icon and the docs' screenshots. `docs/`: the user guide, development and release docs.
-- `packaging/`: `package.sh`, the Windows installer (`windows/`), the macOS disk image (`macos/`) and the `.deb` and `.rpm` (`linux/`). `tools/`: contrast check, browser tests, screenshots.
+- `packaging/`: `package.sh`, the Windows installer (`windows/`), the macOS disk image (`macos/`) and the `.deb` and `.rpm` (`linux/`). `tools/`: contrast check, browser tests, screenshots, the extension's store images.
 
 ## Ground rules
 
 - **Go standard library only.** No third-party modules, no cgo. Don't edit `go.mod` (Go 1.24.7).
-- **Version:** `appVersion` in `version.go` holds major.minor (`1.0`). Releases add the patch number themselves (see Releases). Raise it only for a new series. Keep `MIN_APP` (`extension/link.js`) and `minExtVersion` (`extlink.go`) as they are unless the app and extension stop working together.
+- **Version:** `appVersion` in `version.go` holds major.minor (`1.1`). Releases add the patch number themselves (see Releases). Raise it only for a new series. Keep `MIN_APP` (`extension/link.js`) and `minExtVersion` (`extlink.go`) as they are unless the app and extension stop working together.
 - **No secrets in the repository.** The extension's private key (`.pem`) and the AMO and store credentials stay out of it (`.gitignore`). The extension ID comes from the public `key` in `extension/manifest.json`.
 - **Keep the docs true.** Update `README.md` and `docs/user-guide.md` in the same change as any feature, limitation or behaviour you change.
 - **Deferred ("Later"):** leave these alone unless asked:
-  - J3: Windows signing and version info.
+  - J3: Windows signing. The programs carry version info, and the release workflow signs with SignPath once it's set up (`docs/releasing.md` → Signing the Windows files); until then nothing is signed.
   - J4: a macOS menu-bar presence, signing and notarizing.
   - J5: notifications on every OS.
   - J6: start at login and a clean shutdown.
@@ -78,7 +78,8 @@ go test -race ./...              # about 8 minutes
 - `packaging/package.sh [version]` builds every platform into `pkg/`: the portable packages, the source, the Windows installer (`packaging/windows/installer.nsi`, NSIS: per-user, no administrator prompt, picks the x64 or Arm64 build), the `.deb` and the `.rpm` (`packaging/linux/`). It needs Python with Pillow, `zip`, `makensis`, `dpkg-deb` and `rpmbuild`. Every package carries the extensions, `docs/user-guide.md` as `USER-GUIDE.md` and the `LICENSE` (MIT).
 - `packaging/macos/make-dmg.sh` turns the two macOS zips into one universal `Zipline-macOS.dmg`. It needs macOS, so the workflow's macOS job builds the macOS packages itself (`ZL_PLATFORMS=macos packaging/package.sh`) and runs it there.
 - The installer is a 32-bit NSIS program. 64-bit-only Wine can't run it; to try it under Wine, build it with `ZL_NSIS_TARGET=amd64-unicode`. Its uninstaller runs `Zipline.exe --unregister` (`unregister_windows.go`) to undo this copy's registry entries.
-- `python3 packaging/windows/mksyso.py assets/icon.ico cmd/zipline` regenerates the Windows icon resource (`rsrc_windows_*.syso`).
+- `python3 packaging/windows/mksyso.py assets/icon.ico cmd/zipline` regenerates the Windows resource (`rsrc_windows_*.syso`: the icon, and version info for `appVersion`). `packaging/windows/build-exes.sh` builds each release's Windows programs with their full version in it, and puts the committed files back.
+- The extension's store listing (texts, permissions' justifications, privacy answers) is `docs/store-listing.md`, its images `assets/store/` (`python3 tools/store_images.py`). `extension/PRIVACY.md` is the privacy policy the stores link to: keep it true when what the extension reads or sends changes.
 - `.github/workflows/release.yml` runs on every pull request into `main` and every merge to `main`:
   - Both: tests, then every package and installer built with the version the merge will release (`packaging/next-version.sh`), shown in the run's summary. Pull requests keep them as artifacts for 3 days (a full artifact store only warns).
   - Merges: the files go straight into a draft release, tagged `v<appVersion>.<n>` with the next free `n`, published once the tests pass and every installer is there. No artifacts, so the account's small artifact storage can't block a release. A series lower than one already released is refused.

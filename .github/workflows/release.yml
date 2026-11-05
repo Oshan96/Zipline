@@ -12,6 +12,10 @@
 # the next patch number for them: v1.0.0, v1.0.1, … Raise appVersion (to 1.1, 2.0) in a pull request to
 # start a new series, and its merge releases v1.1.0. A series lower than one already released is refused
 # (packaging/next-version.sh). The full version goes into the app, the extensions and the installers.
+#
+# Signing: once SignPath is set up (the repository variable SIGNPATH_ORGANIZATION_ID and the secret
+# SIGNPATH_API_TOKEN; docs/releasing.md → Signing the Windows files), a release of main has its Windows
+# programs signed before they're packaged, and then the installer. Until then nothing is signed.
 name: Build and release
 
 on:
@@ -124,11 +128,13 @@ jobs:
     needs: version
     if: needs.version.outputs.released != 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 90 # (a few minutes; signing can wait for someone to approve it at SignPath)
     permissions:
       contents: write # (to add the files to the release being put together)
+      actions: write # (signing: SignPath fetches the files from this run's artifacts, deleted afterwards)
     env:
       VERSION: ${{ needs.version.outputs.version }}
+      SIGN: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && needs.version.outputs.draft == 'true' && github.ref == 'refs/heads/main' }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
@@ -137,8 +143,68 @@ jobs:
           cache: false
       - name: Install the packaging tools
         run: sudo apt-get update -q && sudo apt-get install -y -q python3-pil zip nsis rpm
+      - name: Build the Windows programs to sign
+        if: env.SIGN == 'true'
+        run: bash packaging/windows/build-exes.sh "$VERSION" signing/programs
+      - name: Hand the programs to SignPath
+        id: programs
+        if: env.SIGN == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: unsigned-programs
+          path: signing/programs/*.exe
+          if-no-files-found: error
+          retention-days: 1
+      - name: Sign the programs
+        if: env.SIGN == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'zipline' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG || 'release-signing' }}
+          artifact-configuration-slug: windows-programs # (packaging/windows/signpath/windows-programs.xml)
+          github-artifact-id: ${{ steps.programs.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signing/signed-programs
       - name: Build the packages and installers
+        env:
+          ZL_WIN_EXES: ${{ env.SIGN == 'true' && 'signing/signed-programs' || '' }}
         run: bash packaging/package.sh "$VERSION"
+      - name: Hand the installer to SignPath
+        id: installer
+        if: env.SIGN == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: unsigned-installer
+          path: pkg/Zipline-Windows-Setup.exe
+          if-no-files-found: error
+          retention-days: 1
+      - name: Sign the installer
+        if: env.SIGN == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'zipline' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG || 'release-signing' }}
+          artifact-configuration-slug: windows-installer # (packaging/windows/signpath/windows-installer.xml)
+          github-artifact-id: ${{ steps.installer.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signing/signed-installer
+      - name: Check the signatures and use the signed installer
+        if: env.SIGN == 'true'
+        run: |
+          cp signing/signed-installer/Zipline-Windows-Setup.exe pkg/Zipline-Windows-Setup.exe
+          python3 packaging/windows/signed.py pkg/Zipline-Windows-Setup.exe pkg/Zipline-Windows-x64/Zipline.exe pkg/Zipline-Windows-arm64/Zipline.exe
+      - name: Delete the files handed to SignPath
+        if: always() && env.SIGN == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IDS: ${{ steps.programs.outputs.artifact-id }} ${{ steps.installer.outputs.artifact-id }}
+        run: for id in $IDS; do gh api -X DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$id" || true; done
       - name: Check that everything was built
         run: |
           for f in Zipline-Windows-Setup.exe Zipline-Windows-x64.zip Zipline-Windows-arm64.zip Zipline-macOS-apple-silicon.zip \
@@ -252,6 +318,7 @@ jobs:
       GH_REPO: ${{ github.repository }}
       TAG: ${{ needs.version.outputs.tag }}
       VERSION: ${{ needs.version.outputs.version }}
+      SIGNED: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && github.ref == 'refs/heads/main' }}
     steps:
       - name: Check the installers and write the notes
         run: |
@@ -263,6 +330,10 @@ jobs:
           done
           d="https://github.com/$GH_REPO/releases/download/$TAG"
           guide="https://github.com/$GH_REPO/blob/$TAG/docs/user-guide.md"
+          signing="Zipline isn't code-signed yet, so Windows and macOS ask before running it the first time: see [Install]($guide#install)."
+          if [ "$SIGNED" = true ]; then
+            signing="The Windows programs and installer are code-signed. The Mac app isn't yet, so macOS asks before running it the first time: see [Install]($guide#install)."
+          fi
           cat > notes.md <<EOF
           ## Download
 
@@ -272,7 +343,7 @@ jobs:
           | **macOS** 11 or later | [Zipline-macOS.dmg]($d/Zipline-macOS.dmg) (Apple silicon and Intel) | [Apple silicon]($d/Zipline-macOS-apple-silicon.zip) · [Intel]($d/Zipline-macOS-intel.zip) |
           | **Linux** x64 | [.deb]($d/Zipline-Linux-x64.deb) (Debian, Ubuntu) · [.rpm]($d/Zipline-Linux-x64.rpm) (Fedora, openSUSE) | [tar.gz]($d/Zipline-Linux-x64.tar.gz) |
 
-          Zipline isn't code-signed yet, so Windows and macOS ask before running it the first time: see [Install]($guide#install).
+          $signing
           The browser extension comes with every download; the [user guide]($guide#browser-extension) shows how to add it.
 
           EOF

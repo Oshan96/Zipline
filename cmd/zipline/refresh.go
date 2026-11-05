@@ -56,6 +56,10 @@ func (m *Manager) extActive() bool { return time.Since(m.extSeen) < 2*time.Minut
 // linkExpired handles a download whose link ran out. Caller holds m.mu.
 func (m *Manager) linkExpired(d *Download) {
 	d.Status = StError
+	if len(d.Split) > 0 { // (its files come from a player, not a link on the page: nothing to click again)
+		d.Error = "The addresses of this video's files have expired: play it again in your browser and download it from there"
+		return
+	}
 	page := pageOf(d)
 	if m.settings.AutoRefresh && page != "" && m.extActive() && d.linkTries < 2 && (d.Kind == "" || d.Kind == "hls") && !d.Private { // (the page would open in a normal window)
 		d.linkTries++
@@ -252,7 +256,7 @@ func (m *Manager) hasWaitingLinks() bool {
 func (m *Manager) RefreshLink(id string) string {
 	m.mu.Lock()
 	d := m.byID[id]
-	if d == nil || d.Status == StCompleted || d.Live || pageOf(d) == "" {
+	if d == nil || d.Status == StCompleted || d.Live || pageOf(d) == "" || len(d.Split) > 0 {
 		m.mu.Unlock()
 		return "none"
 	}

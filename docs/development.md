@@ -11,11 +11,13 @@ internal/             libraries the program is built from, each with its own tes
   bencode/            BitTorrent's encoding
   filename/           picking and cleaning file names the way browsers do
   httpauth/           HTTP Basic and Digest logins
+  mediahead/          what the start of an MP4 or WebM file says: picture or sound, length, encryption
   pac/                proxy auto-config scripts, with a small JavaScript interpreter
   psl/                the Public Suffix List
   qr/                 QR codes for pairing a phone
   quickxor/           OneDrive's QuickXorHash
   sitemap/            reading sitemaps
+  unpack/             unpacking zip and tar archives safely
   utp/                uTP, and the mux that shares the torrent port's UDP socket
 web/                  the window (index.html, app.js), the phone page (m.html), their shared colours and words
 extension/            the browser extension (one source; manifest.firefox.json for Firefox)
@@ -25,7 +27,7 @@ packaging/            building the release packages and installers
   macos/              the app bundle's Info.plist and the disk image
   linux/              the .deb's control file, the .rpm's spec and the menu entry
 tools/                checks and helpers: colour contrast, browser tests, screenshots
-docs/                 the user guide, this file and the release process
+docs/                 the user guide, this file, the release process and the extension's store listing
 .github/              the build-and-release workflow, issue and pull request templates
 ```
 

@@ -48,7 +48,7 @@ Pause and resume across restarts and reboots. Outages, sleep and expired links d
 
 ### 🎬 Video, ready to play
 
-HLS and DASH streams become one MP4 (or WebM, MKV) with no re-encoding, with your choice of quality, audio languages and subtitles. Live streams record too.
+HLS and DASH streams, and players that fetch the picture and sound as separate files, become one MP4 (or WebM, MKV) with no re-encoding, with your choice of quality, audio languages and subtitles. Live streams record too.
 
 </td>
 </tr>
@@ -64,7 +64,7 @@ Magnet links and `.torrent` files with the DHT, encryption, uTP, router port map
 
 ### ☁️ Cloud share links
 
-Google Drive, Dropbox, OneDrive, MEGA, Yandex Disk, pCloud, MediaFire and WeTransfer links download the file itself, shared folders included.
+Google Drive, Dropbox, OneDrive, MEGA, Yandex Disk, pCloud, MediaFire, WeTransfer and Pixeldrain links download the file itself, shared folders and Catbox albums included.
 
 </td>
 <td valign="top">
@@ -100,7 +100,7 @@ No accounts, ads or telemetry. Saved passwords are encrypted, checksums are veri
 </tr>
 </table>
 
-**And more:** control from your phone on the same Wi-Fi, a site grabber, metalinks, FTP and FTPS, proxies and PAC scripts, an optional virus scan, a command line, full keyboard use and screen-reader support, and light and dark themes. The [user guide](docs/user-guide.md) covers all of it.
+**And more:** control from your phone on the same Wi-Fi, archives unpacked when they finish, a site grabber, metalinks, FTP and FTPS, proxies and PAC scripts, an optional virus scan, a command line, full keyboard use and screen-reader support, and light and dark themes. The [user guide](docs/user-guide.md) covers all of it.
 
 ## Download
 
@@ -111,6 +111,8 @@ Get the newest version from the [releases page](https://github.com/Oshan96/Zipli
 | **Windows** 10 and 11 | [Zipline-Windows-Setup.exe](https://github.com/Oshan96/Zipline/releases/latest/download/Zipline-Windows-Setup.exe)<br><sub>x64 and Arm64, no administrator rights needed</sub> | [x64](https://github.com/Oshan96/Zipline/releases/latest/download/Zipline-Windows-x64.zip) · [Arm64](https://github.com/Oshan96/Zipline/releases/latest/download/Zipline-Windows-arm64.zip) |
 | **macOS** 11 or later | [Zipline-macOS.dmg](https://github.com/Oshan96/Zipline/releases/latest/download/Zipline-macOS.dmg)<br><sub>Apple silicon and Intel</sub> | [Apple silicon](https://github.com/Oshan96/Zipline/releases/latest/download/Zipline-macOS-apple-silicon.zip) · [Intel](https://github.com/Oshan96/Zipline/releases/latest/download/Zipline-macOS-intel.zip) |
 | **Linux** x64 | [Zipline-Linux-x64.deb](https://github.com/Oshan96/Zipline/releases/latest/download/Zipline-Linux-x64.deb)<br><sub>Debian, Ubuntu and their relatives</sub><br>[Zipline-Linux-x64.rpm](https://github.com/Oshan96/Zipline/releases/latest/download/Zipline-Linux-x64.rpm)<br><sub>Fedora, openSUSE and their relatives</sub> | [tar.gz](https://github.com/Oshan96/Zipline/releases/latest/download/Zipline-Linux-x64.tar.gz) |
+
+Zipline can tell you when there's a new version (it asks first), and the Windows installer's copy updates itself in one click.
 
 > [!NOTE]
 > Zipline isn't code-signed yet, so Windows SmartScreen and macOS Gatekeeper ask before running it the first time. The user guide's [Install](docs/user-guide.md#install) section shows how to let it run.
@@ -140,7 +142,8 @@ Get the newest version from the [releases page](https://github.com/Oshan96/Zipli
 | [Security](docs/user-guide.md#security) | How the window, the extension, the phone page and saved passwords are protected |
 | [Extension privacy](extension/PRIVACY.md) | What the browser extension reads, sends and keeps, and why |
 | [Development](docs/development.md) | The repository's layout, building from source and running the tests |
-| [Releasing](docs/releasing.md) | Versions, the release workflow, the packages and installers |
+| [Releasing](docs/releasing.md) | Versions, the release workflow, the packages and installers, signing |
+| [Store listing](docs/store-listing.md) | The extension's listing for the Chrome Web Store, Edge Add-ons and addons.mozilla.org |
 
 ## Build from source
 

@@ -47,6 +47,17 @@ The app isn't signed with an Apple Developer ID or notarized yet, so the first t
 
 Install `secret-tool` (the `libsecret-tools` package on Debian and Ubuntu, `libsecret` on Fedora) so the key that protects saved passwords is kept in your desktop's password store (see [Security](#security)).
 
+### Updates
+
+The first time its window opens, Zipline asks whether to check for new versions. With checking on (Options → General → **Updates**), it asks GitHub for its latest release once a day; nothing about you or your downloads goes with the request, and GitHub sees only an address asking, as for any web page. **Check now** there, or Help → **Check for updates…**, asks at once whatever the setting.
+
+When there's a newer version, the status bar says **Update to …**, and its window lists what changed:
+
+- **The Windows installer's copy:** **Update now** downloads the installer from the release, checks it against the SHA-256 GitHub publishes for it (a file that doesn't match is never run), then Zipline closes, the installer updates it in place, and the new version opens. There's no administrator prompt.
+- **Any other copy** (a portable zip, the Mac's disk image, the `.deb`, `.rpm` or tar.gz): **Download** adds the right package to your downloads, to install as you did the first time.
+
+After an update, reload the extension in `chrome://extensions` (or restart the browser) so it picks up its new version too.
+
 ### Uninstall
 
 - **Windows:** the installer's copy uninstalls from **Settings → Apps**. That removes the program, its shortcuts and its registrations for magnet links, `.torrent` files and the browser extension (first, so no browser starts Zipline's helper again meanwhile). A running Zipline is asked to quit, and whatever still runs it a few seconds later is ended. It keeps the settings and download list unless you choose to remove them; files you downloaded are never touched. A portable copy is just its folder.
@@ -124,6 +135,16 @@ Names the server gives are read as browsers read them (including international n
 
 Right-click → Move to folder… (or Move… in Properties) moves a download's files to another folder, finished or not: one in progress pauses, moves and carries on, a torrent keeps sharing from its new place, a video keeps its subtitles and parts beside it. Moving to another drive copies first and removes the original only once the copy is complete, and a file already there is never overwritten.
 
+### Unpack archives when they finish
+
+Options → File checks → **Unpack archives** unpacks `.zip`, `.tar`, `.tar.gz` (`.tgz`) and `.tar.bz2` downloads when they finish, into a folder next to the archive: the one folder the archive holds, when it holds just one, or else a folder named after the archive (a name already taken gets " (1)"). **Unpack** in Properties sets it for one download, and right-click → **Unpack now** unpacks any finished archive; **Open unpacked folder** opens the result.
+
+- It waits for the file's checks: an archive that doesn't match its checksum, or in which the virus scan found something, isn't unpacked.
+- Nothing lands outside that folder: names that point elsewhere (`../`, full paths) and links are left out, and names are made safe for any system. The unpacked files carry the same "downloaded from the internet" mark as the archive.
+- The folder appears only once everything is in it. If the disk runs short, or the drive can't hold one of the files (FAT32 stops at 4 GB), nothing is left half-unpacked.
+- **Delete the archive once it's unpacked** removes it afterwards, and Open and Show in folder then go to the unpacked folder. A synchronization queue's archives are kept, since the queue compares them with the server.
+- Password-protected zip files, other formats (`.7z`, `.rar`, a lone `.gz`) and torrents aren't unpacked.
+
 ### Proxies
 
 Zipline follows your computer's proxy settings by default, including setup scripts (PAC files) and automatic detection, on Windows, macOS and Linux (GNOME or KDE settings, or the usual environment variables). When a proxy in the list doesn't answer, the next one is used. You can also set an HTTP or SOCKS5 proxy with a login and a "don't use for" list in Options → Proxy, with a Test button. FTP downloads go through a SOCKS5 proxy.
@@ -144,7 +165,7 @@ The Tasks menu exports the download list to a Zipline list (.json, with queues a
 
 ## Video and streams
 
-The browser extension puts a "Download video" button on video players and lists the videos it finds in its popup, one entry per video. Zipline downloads plain video files and both common streaming formats, HLS (`.m3u8`) and MPEG-DASH (`.mpd`). It lets you pick the quality, fetches the pieces on up to 12 connections, decrypts standard AES-128 HLS streams and resumes if interrupted. YouTube and DRM-protected services are excluded: Zipline turns their links down wherever they come from (the Add dialog, the extension, the command line, copied links, a site grab, the phone page) with "Zipline doesn't download from YouTube or DRM-protected streaming services".
+The browser extension puts a "Download video" button on video players and lists the videos it finds in its popup, one entry per video. Zipline downloads plain video files, both common streaming formats, HLS (`.m3u8`) and MPEG-DASH (`.mpd`), and videos whose player fetches the picture and the sound as two separate files. It lets you pick the quality, fetches the pieces on up to 12 connections, decrypts standard AES-128 HLS streams and resumes if interrupted. YouTube and DRM-protected services are excluded: Zipline turns their links down wherever they come from (the Add dialog, the extension, the command line, copied links, a site grab, the phone page) with "Zipline doesn't download from YouTube or DRM-protected streaming services".
 
 ### MP4 output, with nothing extra to install
 
@@ -154,6 +175,7 @@ When the download finishes, the pieces are repackaged into one regular `.mp4`. N
 - Streams that arrive as MP4 pieces become an ordinary MP4 that any player or editor opens.
 - Streams that keep their audio in a separate track have it fetched too and merged in, in sync. This is how most DASH streams work.
 - DASH streams in WebM (VP9 or AV1 video with Opus audio) become one `.webm` file with a seek index.
+- Videos whose picture and sound are separate files become one `.mp4` (or `.webm`) the same way.
 - Audio-only streams become `.m4a` (`.opus` for Opus, `.mka` for what MP4 can't hold). To keep the original `.ts` pieces instead, name the file `.ts` in the Add dialog.
 - The rare stream that uses a format MP4 can't hold here (MPEG-2 video or DTS audio, for example) is saved as `.ts`, which plays in VLC. If a separate audio track can't be merged, it's saved next to the video. If [ffmpeg](https://ffmpeg.org) happens to be installed, Zipline uses it for those rare formats, but it's never required.
 
@@ -199,11 +221,11 @@ The progress window shows the peers (a lock for an encrypted connection, a uTP m
 
 ## Cloud share links
 
-Paste a share link from Google Drive, Dropbox, OneDrive, MEGA, Yandex Disk, pCloud, MediaFire or WeTransfer (or copy it, if clipboard watching is on) and Zipline downloads the file itself, not the web page around it: the Add dialog says where it's from, with the file's real name and size. Big Google Drive files get past the "can't scan for viruses" page by themselves, and older Drive links that need their resource key keep working. Google Docs, Sheets and Slides come as Word, Excel and PowerPoint files. The download keeps the share link, so it can resume later even though the link the service hands out doesn't last. When a service refuses (a file over its download quota, removed, private or behind a password, a Dropbox account whose links were switched off for too much traffic), the download fails with the service's own words instead of saving its web page.
+Paste a share link from Google Drive, Dropbox, OneDrive, MEGA, Yandex Disk, pCloud, MediaFire, WeTransfer or Pixeldrain, or a Catbox album (or copy it, if clipboard watching is on) and Zipline downloads the file itself, not the web page around it: the Add dialog says where it's from, with the file's real name and size. Big Google Drive files get past the "can't scan for viruses" page by themselves, and older Drive links that need their resource key keep working. Google Docs, Sheets and Slides come as Word, Excel and PowerPoint files. The download keeps the share link, so it can resume later even though the link the service hands out doesn't last. When a service refuses (a file over its download quota, removed, private or behind a password, a Dropbox account whose links were switched off for too much traffic), the download fails with the service's own words instead of saving its web page.
 
-- **Shared folders** from Google Drive, OneDrive, MEGA, Yandex Disk and pCloud are listed in the Add dialog like a metalink's files: download all of them (into a folder named after the shared one, its folders kept) or pick one.
+- **Shared folders** from Google Drive, OneDrive, MEGA, Yandex Disk and pCloud, Pixeldrain lists and folders, and Catbox albums are listed in the Add dialog like a metalink's files: download all of them (into a folder named after the shared one, its folders kept) or pick one.
 - **MEGA** files are decrypted as they arrive, on several connections at once, and checked against the MAC in their link when they finish; a file damaged on the way fails instead of being kept.
-- **Checksums the services publish** are checked when the file finishes: OneDrive's QuickXorHash, the SHA-256 Yandex Disk and MediaFire give.
+- **Checksums the services publish** are checked when the file finishes: OneDrive's QuickXorHash, the SHA-256 Yandex Disk, MediaFire and Pixeldrain give.
 
 ## Queues and scheduling
 
@@ -275,6 +297,8 @@ The list of protected sites comes from the app with each check-in, so the extens
 ### Videos in the popup
 
 **One entry per video.** A stream is listed once: its master playlist (or DASH manifest) together with the quality playlists, audio tracks and parts it lists, so you never get a video without sound by picking a single quality. The entry is named after the page (its `og:title`, `twitter:title` or title, without a trailing "| Site" or "- Site") with the length and the best quality when known. Zipline's Add dialog gets the master address and the page's title, so the file is named after the video and you pick the quality there. A playlist seen on its own, with no master, is still offered. The popup entry and the button on the video send exactly the same thing: the Referer, Origin, User-Agent and cookies of the player's own request (cookies only if that request had them).
+
+**Picture and sound in separate files.** Some players fetch a video's picture and its sound as two separate MP4 or WebM files, a piece at a time, with no playlist to say which is which: the piece's byte range is in the address (`bytestart=`, `byteend=`, `range=`) or in the request. The extension notes each file the player fetches that way, as one entry ("Video" in the popup). A player that was quiet for a minute and then fetches again starts a new entry. Zipline reads the start of each file (a few kilobytes) to see what it holds, how long it is and how big its picture is. The newest picture decides the video: its other qualities are the picture files of the same length, and its sound is the sound file of that length. So on a page that plays one video after another, each video gets its own sound. The Add dialog offers the qualities seen, then the files are downloaded whole, on several connections, and combined into one file. A file that's encrypted is DRM, and refused. A plain video fetched in pieces (picture and sound in one file) stays an ordinary entry. These videos' addresses usually expire within hours: if they run out before the download finishes, play the video again and download it from there.
 
 **How streams are recognised.** By the reply's type (`application/vnd.apple.mpegurl`, `application/x-mpegURL`, `application/dash+xml`, `video/vnd.mpeg.dash.mpd`) or the address ending, and, for a vague type (`text/plain`, `application/octet-stream`) on an address with a word like `playlist`, `manifest`, `master`, `m3u8` or `mpd`, by looking at the first bytes (`#EXTM3U` or `<MPD`). Chrome's extensions can't read a reply's body, so the extension fetches the playlist once more (the first time it sees it on a page), with your cookies for that site and the player's Referer and Origin. Firefox reads the reply as it passes instead.
 
@@ -354,6 +378,7 @@ Zipline's window and the browser extension talk to the app only on `127.0.0.1:17
 - **Programs on this computer** (a second launch, the command line, the native messaging host) prove themselves with the secret in `run.json`, which only your user can read, and Zipline proves itself back, so a program that took its port gets nothing.
 - **The browser extension** comes through its native messaging host, or over HTTP once you've allowed it (signed requests; see [How the extension reaches Zipline](#how-the-extension-reaches-zipline)). Without either it only learns Zipline's version.
 - **Running programs:** the virus-scan program (and its arguments), which runs after every download, can only be changed in the window, which shows the program and asks before saving.
+- **Updates** run a program too, so only the window can start one, and only an installer from Zipline's own GitHub releases that matches the SHA-256 GitHub publishes for it.
 - **One Zipline per user:** a lock file in your data folder, not the port. If another program has port 17890, Zipline takes a free one (the native messaging link still finds it; the window says so).
 
 Two features listen on your network, each on its own port: torrent sharing, for other peers (Options → Torrents; TCP and UDP on one port, which Zipline asks your router to open unless you switch that off), and phone control, only while it's switched on (Options → Phone). Sign-in cookies and passwords only go to the site they came from, never to mirrors or other sites a download is spread across.
@@ -390,12 +415,15 @@ Found a security problem? See the [security policy](https://github.com/Oshan96/Z
 - Cloud services: every service was checked against simulated replies modelled on its documented or observed answers rather than against the live service. A file that isn't shared publicly (a Google Drive file not shared with "Anyone with the link", a password-protected Dropbox, MediaFire or pCloud link) has to be started from the browser, where the extension passes it on with your sign-in.
   - Best-effort, because they rest on interfaces the services don't publish and change from time to time: OneDrive personal links (OneDrive's sharing service with the anonymous token its own web viewer uses, kept for about a week; links on onedrive.cloud.microsoft go the same way), Google Drive folders (read from the folder's page as gdown does, without sizes), MediaFire (the download button on its page, including its newer scrambled form) and WeTransfer (the internal API its own page uses). If one of them stops working, click Download in the browser and the extension hands the download to Zipline. Work and school (SharePoint) links work directly; their folders can't be listed without a sign-in.
   - MEGA: file links (mega.nz/file/… and the older #!… links) and shared folders (mega.nz/folder/…, #F!…, and a file's link inside one). Files MEGA stores in several parts (CloudRAID) fail with a message saying so. When MEGA's free transfer quota for your connection is used up, the download stops and says when it frees up. MediaFire folder links aren't listed (copy a file's link); Dropbox folder links download as a zip (Dropbox's own way).
-  - Yandex Disk and pCloud use their published public APIs (pCloud's US and EU regions are both asked). Folders list at most 2,000 files, eight folders deep.
+  - Yandex Disk, pCloud and Pixeldrain use their published public APIs (pCloud's US and EU regions are both asked). Folders list at most 2,000 files, eight folders deep.
+  - Pixeldrain: file links (pixeldrain.com/u/…), lists (/l/…, and one file of a list with #item=) and filesystem folders (/d/…). When Pixeldrain holds a file back (over its free download limit, or it wants a person to solve a captcha first), the download stops with Pixeldrain's own words; opening the link in the browser gets it there. Catbox albums (catbox.moe/c/…) are read from the album's page; a single Catbox file is an ordinary link.
+  - Gofile: start the download from the browser, where the extension passes it on with your Gofile cookie. Zipline doesn't list Gofile folders, since Gofile only answers that for its premium accounts, or for its own web page.
 - Taking a download over from the browser: the browser has already sent its request when it says a download is starting, so a link a server spends on the very first request (even one cancelled at once) can't be taken over by any extension; close Zipline's Add dialog and the browser gets it back. In Chrome, a download from a form (POST) in a private window stays in the browser: an extension can only start a private window's download by opening its address there. Downloads from private windows aren't saved in the list, but Zipline's log file still names them.
 - Getting a fresh link from the page needs the browser extension and works when the page itself offers the file (a link or a download it starts). Pages behind a captcha, or ones where you have to click through several steps, need you to click the link yourself; Zipline still recognises it and carries on.
 - Zipline only looks for published checksum files for downloads of 20 MB or more, and only next to the file (the same folder on the server). A wrong checksum is reported, but without a metalink's piece checksums the whole file has to be downloaded again.
 - DRM-protected video (Netflix, Disney+, Prime Video and similar) and YouTube can't be downloaded. Zipline refuses those sites by address (the list is in the app: YouTube, Netflix, Disney+, Prime Video, Hulu, Max, Spotify, Apple TV+, Peacock, Paramount+, Crunchyroll and their video servers), and a stream from another server when it was played on one of those pages. A DRM service that streams from a server of its own, to a page that isn't on the list, isn't recognised by its address; Zipline then stops at the stream's own protection.
 - Live DASH streams aren't recorded (live HLS streams are). SAMPLE-AES inside MP4 pieces (`cbcs`) is refused.
+- A video whose picture and sound are separate files needs the browser extension, and the player has to have started fetching it. Zipline can't renew such a video's addresses when they expire: play it again and download it anew. Only the files the player fetched are offered, so a quality the player never asked for isn't in the list.
 - A video whose pieces fall short by less than a second (or 1%) still counts as complete.
 - Subtitles in TTML/IMSC (some DASH and HLS streams) and closed captions carried inside the video aren't downloaded; WebVTT subtitles are.
 - Grouping a stream's playlists needs the extension to read them, and Chrome extensions can't read replies (Manifest V3), so the playlist is fetched a second time. A server that hands out a playlist only once, or turns the second request away (a one-time token), leaves the stream listed by its address without its qualities, and its separate playlists may then show as separate entries. A reply with a vague type is only looked at when its address says "playlist", "manifest", "master", "m3u8", "mpd" and the like; other addresses are never fetched a second time.

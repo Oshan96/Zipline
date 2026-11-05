@@ -61,9 +61,11 @@ function statusText(d) {
   if (d.torrent) { const x = torrentStatus(d); if (x) return x; }
   switch (d.status) {
     case "completed":
+      if (d.unpackState === "unpacking") return t("st.completeUnpacking", { pct: fmtPct(d.stagePct || 0, 0) });
       if (d.stage) return t("st.completeChecking", { pct: fmtPct(d.stagePct || 0, 0) });
       if (d.check && d.check.state === "bad") return t("st.completeDamaged");
-      return t(d.scanState === "scanning" || d.scanState === "waiting" ? "st.completeScanning" : d.scanState === "threat" ? "st.completeThreat" : d.check && d.check.state === "ok" ? "st.completeVerified" : "st.complete");
+      return t(d.scanState === "scanning" || d.scanState === "waiting" ? "st.completeScanning" : d.scanState === "threat" ? "st.completeThreat"
+        : d.unpackState === "done" ? "st.completeUnpacked" : d.unpackState === "failed" ? "st.completeNotUnpacked" : d.check && d.check.state === "ok" ? "st.completeVerified" : "st.complete");
     case "error": {
       if (d.tryAgain) return t("st.errorRetrying", { wait: fmtWait(Math.max(0, d.tryAgain - Date.now()) / 1000) }); // its queue tries it again
       const w = t(d.link === "refreshing" ? "st.linkRefreshing" : d.link ? "st.linkExpired" : "st.error");
@@ -202,6 +204,7 @@ function menuDefs() {
       menuItem(t("menu.shortcuts"), "", () => shortcutsDialog()),
       menuItem(t("menu.cli"), "", () => cliDialog()),
       menuItem(t("menu.diagnostics"), "", () => diagDialog()),
+      menuItem(t("menu.checkUpdates"), "", () => checkUpdates(true)),
       menuItem(t("menu.about"), "", () => aboutDialog()),
     ]],
   ];
@@ -830,6 +833,9 @@ function rowCells(d) {
   };
 }
 const SCAN_STATES = ["waiting", "scanning", "clean", "threat", "failed"];
+// isArchive: a download Zipline can unpack when it's done (unpack.go): a .zip or .tar file, not a stream or torrent
+const isArchive = d => !!d && !d.torrent && !isHLS(d) && /\.(zip|tar|tgz|tbz2?|tar\.gz|tar\.bz2)$/i.test(d.name || "");
+const canUnpack = d => d.status === "completed" && isArchive(d) && d.unpackState !== "waiting" && d.unpackState !== "unpacking";
 const scanCell = d => d.scanState ? `<span class="scan ${d.scanState}" title="${esc(d.scanNote || "")}">${SCAN_STATES.includes(d.scanState) ? esc(t("scan." + d.scanState)) : ""}</span>` : "";
 const descText = d => d.desc || (d.status === "error" ? d.error : "") || (d.scanState === "threat" ? d.scanNote : "") || d.note || d.syncNote || "";
 function renderTable() {
@@ -986,6 +992,10 @@ function rowCtx(e) {
     SEP,
     menuItem(t(sl.every(d => d.torrent) ? "a.copyMagnet" : "a.copyLink"), "", () => { navigator.clipboard?.writeText(sl.map(d => d.torrent?.magnet || d.url).join("\n")); toast(t(sl.every(d => d.torrent) ? "ctx.magnetCopied" : "ctx.linkCopied")); }),
     menuItem(t("ctx.scanNow"), "", () => act("scan", sl.filter(d => d.status === "completed").map(d => d.id)), { disabled: !sl.some(d => d.status === "completed") }),
+    ...(sl.some(isArchive) ? [
+      menuItem(t("ctx.unpackNow"), "", () => act("unpack", sl.filter(canUnpack).map(d => d.id)), { disabled: !sl.some(canUnpack) }),
+      menuItem(t("ctx.openUnpacked"), "", () => act("openUnpacked", sl.filter(d => d.unpackDir).map(d => d.id)), { disabled: !sl.some(d => d.unpackDir) }),
+    ] : []),
     menuItem(t("ctx.exportSelected"), "", () => exportDialog(sl.map(d => d.id))),
     menuItem(t("a.removeFromList"), "Del", () => removeSel(false)),
     menuItem(t("a.deleteFile"), "Shift+Del", () => removeSel(true)),
@@ -1062,7 +1072,7 @@ function renderStatus() {
   patchHTML($("#sb-main"),
     `<span>${ht("bar.downloading", { n: active })}</span><span class="opt">${ht("bar.connections", { n: conns })}</span><span class="opt">${ht("bar.unfinished", { n: unf })}</span>` +
     `<span class="grow"></span>${powerStatus()}<span title="${esc(S.queues.filter(qBusy).map(q => q.name).join(", "))}"><span class="dot ${S.queueRunning ? "on" : ""}"></span>${queueStatusText()}</span>` +
-    capStatus() + quotaStatus() + planStatus() + upStatus() + profileStatus() +
+    updateStatus() + capStatus() + quotaStatus() + planStatus() + upStatus() + profileStatus() +
     `<span class="opt">${S.limitOn ? ht("bar.limiterOn", { rate: fmtKBps(S.limitKB) }) : ht("bar.limiterOff")}</span><span>${ht("bar.total", { speed: fmtSpeed(S.totalSpeed, true) })}</span>`);
   // a hold-up worth saying out loud, once each time it starts
   const cap = capHeld();
@@ -1085,6 +1095,12 @@ function patchHTML(el, html) {
     } else el.replaceChild(n, c);
   });
   cur.slice(next.length).forEach(c => c.remove());
+}
+// updateStatus offers a newer Zipline, once one is known (update.go).
+function updateStatus() {
+  const u = S.update;
+  if (!u || !u.version) return "";
+  return `<button class="sb-btn sb-warn" data-sb="update" title="${te("up.title", { version: u.version })}">${ht("bar.update", { version: u.version })}</button>`;
 }
 // upStatus shows uploading to other peers while torrents run or share.
 function upStatus() {
@@ -1799,8 +1815,9 @@ async function fileInfoDialog(url, headers = {}, presetName = "", onDone, title 
   // early start: the app may begin downloading as soon as it has the file's details
   let earlyId = "", committed = false, keepTimer = 0, added = false;
   // a download from the browser: its own request (a form's POST), what its reply said (so the app doesn't
-  // ask the server again), a private window; closing the dialog without adding it hands it back
-  const req = { method: preset.method || "", body: preset.body || "", known: preset.known || null, private: !!preset.private };
+  // ask the server again), a private window, a video whose player fetched its picture and sound as separate
+  // files (split); closing the dialog without adding it hands it back
+  const req = { method: preset.method || "", body: preset.body || "", known: preset.known || null, private: !!preset.private, split: preset.split || [] };
   let torrent = null; // a torrent's own Start/Later/close handling
   const el = dialog({
     title: t("fi.title"), width: 560,
@@ -1849,7 +1866,7 @@ async function fileInfoDialog(url, headers = {}, presetName = "", onDone, title 
     ? `<div class="err-box err-act"><div>${te("fi.challenge")}</div><button class="btn sm" id="fi-browse">${te("ctx.openInBrowser")}</button></div>`
     : `<div class="err-box">${ht("fi.readFail", { error: info.error })}</div>`;
   const facts = fold ? folderFacts(info, st) : hls ? `
-      <div>${te("fact.type")}</div><div class="wrap">${ht(live ? (info.event ? "fi.eventType" : "fi.liveType") : info.fmp4 && info.format !== "DASH" ? "fi.hlsTypeMp4" : "fi.hlsType", { format: info.format || "HLS" })}</div>
+      <div>${te("fact.type")}</div><div class="wrap">${ht(live ? (info.event ? "fi.eventType" : "fi.liveType") : info.split ? "fi.splitType" : info.fmp4 && info.format !== "DASH" ? "fi.hlsTypeMp4" : "fi.hlsType", { format: info.format || "HLS" })}</div>
       <div>${te("fact.length")}</div><div>${live ? te("fi.liveLength") : info.duration ? fmtDur(info.duration) : "—"}</div>
       ${live ? "" : `<div>${te("fact.pieces")}</div><div>${ht("fi.hlsPieces", { n: info.segments || "—", conns: Math.min(12, st.conns) })}</div>`}
       <div>${te("fact.savedAs")}</div><div class="wrap" id="fi-saved">${ht(info.separateAudio ? "fi.savedMerged" : /\.ts$/i.test(name) ? "fi.savedTs" : info.fmp4 ? "fi.savedMp4" : "fi.savedRepack")}</div>
@@ -1959,7 +1976,7 @@ async function fileInfoDialog(url, headers = {}, presetName = "", onDone, title 
     }
     const sameUrl = $("#url", el).value.trim() === url;
     if (!r) r = await api("add", { url: $("#url", el).value.trim(), ...pick, start, queueId: start ? "" : qid, headers, ...(stream ? stream.pick() : {}), size: !hls && !ml && sameUrl && info.size > 0 ? info.size : 0,
-      ...(sameUrl ? { method: req.method, body: req.body } : {}), private: req.private });
+      ...(sameUrl ? { method: req.method, body: req.body, split: req.split } : {}), private: req.private });
     if (r.error) {
       if (r.field === "checksum") return badSum(cap1(r.error) + ".");
       throw new Error(r.error);
@@ -2551,6 +2568,8 @@ function propsDialog(d, focus) {
       ${field(te("f.speedLimit"), `<div class="inline"><input class="inp num" id="plim" type="number" min="0" step="50"><span class="unit">${te("pr.limitUnit")}</span></div>`)}
       ${field(te("f.virusScan"), `<select class="inp" id="pscan">
         <option value="">${te("pr.scanDefault", { state: S.settings?.scan?.on ? "on" : "off" })}</option><option value="on">${te("pr.scanOnFile")}</option><option value="off">${te("pr.scanOffFile")}</option></select>`)}
+      ${isArchive(d) ? field(te("f.unpack"), `<select class="inp" id="punpack">
+        <option value="">${te("pr.unpackDefault", { state: S.settings?.unpack?.on ? "on" : "off" })}</option><option value="on">${te("pr.unpackOn")}</option><option value="off">${te("pr.unpackOff")}</option></select>`) : ""}
       ${hls ? "" : field(te("f.checksum"), `<input class="inp" id="psum" spellcheck="false" placeholder="${te("pr.sumPh")}">`, { hint: `<div class="sum-state" id="psumst"></div>` })}
       <div class="kv" style="margin-top:12px">
         <div>${te("fact.category")}</div><div>${esc(catName(d.category))}</div>
@@ -2564,6 +2583,7 @@ function propsDialog(d, focus) {
         <div id="pexpk" hidden>${te("fact.linkExpires")}</div><div id="pexp" hidden></div>
         ${d.scanState ? `<div>${te("fact.virusScan")}</div><div class="scan ${d.scanState}" title="${esc(d.scanNote || "")}">${esc(d.scanNote || (SCAN_STATES.includes(d.scanState) ? t("scan." + d.scanState) : ""))}</div>` : ""}
         ${d.syncNote ? `<div>${te("fact.syncCheck")}</div><div>${esc(d.syncNote)}${fmtDate(d.checked) ? " · " + fmtDate(d.checked) : ""}</div>` : ""}
+        ${d.unpackNote ? `<div>${te("fact.unpack")}</div><div class="wrap">${esc(d.unpackNote)}</div>` : ""}
       </div>`,
     buttons: [
       { label: t("btn.save"), primary: true, busy: t("btn.saving"), fn: async el => {
@@ -2578,6 +2598,7 @@ function propsDialog(d, focus) {
         }
         const body = { id, name: $("#pn", el).value, url: $("#pu", el).value, desc: $("#pd", el).value, scan: $("#pscan", el).value || "default" };
         if ($("#pm", el)) body.mirrors = $("#pm", el).value.split(/\s+/).filter(Boolean);
+        if ($("#punpack", el)) body.unpack = $("#punpack", el).value || "default";
         const r = await api("props", body);
         if (r.error) return /renam/i.test(r.error) ? bad($("#pn", el), cap1(r.error) + ".") : Promise.reject(new Error(r.error));
         const kb = Math.max(0, +$("#plim", el).value || 0);
@@ -2597,6 +2618,7 @@ function propsDialog(d, focus) {
   $("#pmove", el).onclick = () => moveDialog([id]);
   $("#pn", el).value = d.name; $("#pu", el).value = d.url; $("#pd", el).value = d.desc || ""; $("#plim", el).value = d.limitKB || 0; $("#pscan", el).value = d.scan || "";
   if ($("#pm", el)) $("#pm", el).value = (d.mirrors || []).join("\n");
+  if ($("#punpack", el)) $("#punpack", el).value = d.unpack || "";
   if ($("#psum", el)) $("#psum", el).value = sumWant(d);
   const draw = () => {
     const x = S.byId.get(id) || d;
@@ -2853,6 +2875,10 @@ async function optionsDialog(tab = "general", focus = "") {
         <label class="radio"><input type="radio" name="o-start" value="resume"><div><b>${te("o.startResume")}</b><div class="hint">${te("o.startResumeHint")}</div></div></label>
         <label class="radio"><input type="radio" name="o-start" value="paused"><div><b>${te("o.startPaused")}</b><div class="hint">${te("o.startPausedHint")}</div></div></label>
       </div>
+      <div class="section-title"><span>${te("o.updTitle")}</span></div>
+      <label class="chk"><input type="checkbox" id="o-upd"> ${te("o.upd")}</label>
+      <div class="hint indent-chk">${te("o.updHint")}</div>
+      <div class="inline indent-chk"><button class="btn sm" id="o-updnow" type="button">${te("o.updNow")}</button><span class="hint" id="o-updst" role="status"></span></div>
     </div>
     <div class="pane" data-p="conn">
       ${field(te("o.conns"), `<select class="inp fit" id="o-conns">${[1, 2, 4, 6, 8, 12, 16, 24, 32].map(n => `<option>${n}</option>`).join("")}</select>`, { hint: te("o.connsHint") })}
@@ -2918,6 +2944,10 @@ async function optionsDialog(tab = "general", focus = "") {
       <div class="section-title"><span>${te("o.scanTitle")}</span></div>
       <label class="chk"><input type="checkbox" id="o-scan"> ${te("o.scan")}</label>
       <div class="hint indent-chk">${te("o.scanHint")}</div>
+      <div class="section-title"><span>${te("o.unpackTitle")}</span></div>
+      <label class="chk"><input type="checkbox" id="o-unpack"> ${te("o.unpack")}</label>
+      <div class="hint indent-chk">${te("o.unpackHint")}</div>
+      <label class="chk indent-chk"><input type="checkbox" id="o-unpackdel"> ${te("o.unpackDel")}</label>
       <div class="sub" style="margin-top:12px">
         ${field(te("o.scanner"), `<select class="inp fit" id="o-scanmode"><option value="auto">${te("o.scanAuto")}</option><option value="custom">${te("o.scanCustom")}</option></select>`, { hint: "", hintId: "o-scanauto" })}
         <div id="o-scancustom">
@@ -3108,6 +3138,11 @@ async function optionsDialog(tab = "general", focus = "") {
   }).catch(() => {});
   el._assoc = () => assocWas;
   $("#o-prog", el).checked = st.showProgressDialog; $("#o-done", el).checked = st.showCompleteDialog; $("#o-early", el).checked = st.earlyStart !== false;
+  const updWas = (st.updates && st.updates.check) || "";
+  $("#o-upd", el).checked = updWas === "on";
+  const updState = () => { const u = S.update; $("#o-updst", el).textContent = u && u.version ? t("up.title", { version: u.version }) : u && u.checked ? t("o.updLast", { when: fmtDate(new Date(u.checked).toISOString()) }) : ""; };
+  $("#o-updnow", el).onclick = async () => { const b = $("#o-updnow", el); b.disabled = true; try { await checkUpdates(true); } finally { b.disabled = false; updState(); } };
+  updState();
   $("#o-awake", el).checked = st.keepAwake !== false;
   $(`input[name=o-start][value=${st.startPaused ? "paused" : "resume"}]`, el).checked = true;
   const keys = st.keys || {};
@@ -3259,6 +3294,10 @@ async function optionsDialog(tab = "general", focus = "") {
     if (out.hidden) return;
     out.innerHTML = planSummaryHTML(p);
   };
+  const up = st.unpack || {};
+  $("#o-unpack", el).checked = !!up.on; $("#o-unpackdel", el).checked = !!up.delete;
+  const syncUnpack = () => { $("#o-unpackdel", el).disabled = !$("#o-unpack", el).checked; };
+  $("#o-unpack", el).onchange = syncUnpack; syncUnpack();
   const sc = st.scan || {};
   $("#o-scan", el).checked = !!sc.on;
   $("#o-scanmode", el).value = sc.program ? "custom" : "auto";
@@ -3414,6 +3453,7 @@ async function optionsDialog(tab = "general", focus = "") {
   };
   async function save(el) {
     st.showProgressDialog = $("#o-prog", el).checked; st.showCompleteDialog = $("#o-done", el).checked; st.earlyStart = $("#o-early", el).checked;
+    if ($("#o-upd", el).checked !== (updWas === "on")) st.updates = { check: $("#o-upd", el).checked ? "on" : "off" }; // (left as it was: still asked once)
     st.keepAwake = $("#o-awake", el).checked; st.startPaused = $("input[name=o-start]:checked", el).value === "paused";
     st.keys = { zipline: $("#o-kzip", el).value, browser: $("#o-kbr", el).value };
     if (st.keys.zipline !== "off" && st.keys.zipline === st.keys.browser) bad("#o-kbr", t("o.errKeys"), "integration");
@@ -3457,6 +3497,7 @@ async function optionsDialog(tab = "general", focus = "") {
     st.cap = { on: $("#o-cap", el).checked, mb: Math.max(1, +$("#o-capmb", el).value || 500), hours: +$("#o-caph", el).value || 1 };
     const custom = $("#o-scanmode", el).value === "custom", scanWas = el._scanWas ??= { ...(st.scan || {}) }; // (as last saved)
     st.scan = { on: $("#o-scan", el).checked, program: custom ? $("#o-scanprog", el).value.trim() : "", args: custom ? $("#o-scanargs", el).value.trim() : "" };
+    st.unpack = { on: $("#o-unpack", el).checked, delete: $("#o-unpackdel", el).checked };
     if (custom && !st.scan.program) bad("#o-scanprog", t("o.errScanner"), "scan");
     st.downloadDir = $("#o-dir", el).value.trim(); st.categoryFolders = $("#o-catf", el).checked; st.clipboardMonitor = $("#o-clip", el).checked;
     if (!st.downloadDir) bad("#o-dir", t("o.errDir"), "save");
@@ -4201,6 +4242,55 @@ function batchDialog() {
   $("#b-browse", el).onclick = () => pickFolder($("#b-dir", el));
 }
 
+// ---- Updates (update.go): asked about once, then Options → General; the window alone installs one.
+async function setUpdateCheck(check) {
+  const st = await api("settings"); st.updates = { ...(st.updates || {}), check }; S.settings = await api("settings", st);
+}
+function askUpdates() {
+  dialog({
+    title: t("up.askTitle"), width: 460, key: "askupd", modal: false, focus: "dialog",
+    body: `<p style="margin-top:0">${te("up.askBody")}</p>`,
+    buttons: [
+      { label: t("up.askYes"), primary: true, busy: t("btn.saving"), fn: async el => { await setUpdateCheck("on"); el.close(); checkUpdates(false); } },
+      { label: t("up.askNo"), busy: t("btn.saving"), fn: async el => { await setUpdateCheck("off"); el.close(); } },
+    ],
+  });
+}
+// checkUpdates asks GitHub now; asked for by hand, it always answers (the dialog, or "the newest")
+async function checkUpdates(byHand) {
+  const r = await api("update", { action: "check" }).catch(e => ({ error: errText(e) }));
+  if (r.version) { S.update = r; renderStatus(); if (byHand) updateDialog(); }
+  else if (byHand) toast(r.error ? t("up.checkFailed", { error: r.error }) : t("up.newest", { current: r.current || APP_VERSION }), { ms: 6000, kind: r.error ? "error" : "" });
+  return r;
+}
+function updateDialog() {
+  const u = S.update; if (!u || !u.version) return;
+  const el = dialog({
+    title: t("up.title", { version: u.version }), width: 520, key: "update",
+    body: `<div id="up-body"></div>`,
+    buttons: [
+      ...(u.install ? [{ label: t("up.updateNow"), primary: true, id: "up-go", fn: async el => {
+        const r = await api("update", { action: "install" });
+        if (r.error) throw new Error(r.error);
+        draw();
+      } }] : u.url ? [{ label: t("up.download"), primary: true, fn: el => { el.close(); fileInfoDialog(u.url); } }] : []),
+      { label: t("up.notes"), fn: () => api("update", { action: "page" }) },
+      { label: t("btn.close"), cancel: true, fn: el => el.close() },
+    ],
+  });
+  function draw() {
+    const v = S.update || u, busy = v.state === "downloading" || v.state === "installing";
+    $("#up-body", el).innerHTML = `<p style="margin-top:0">${te("up.current", { current: v.current })}</p>` +
+      (v.notes && v.notes.length ? `<div class="section-title" style="margin-top:0"><span>${te("up.changes")}</span></div><ul class="up-notes">${v.notes.map(n => `<li>${esc(n)}</li>`).join("")}</ul>` : "") +
+      `<p class="hint">${te(v.install ? "up.installHint" : v.url ? "up.downloadHint" : "up.noAsset", { file: v.asset || "" })}</p>` +
+      (v.state === "downloading" ? `<p role="status"><span class="spin"></span>${te("up.downloading", { pct: fmtPct(v.pct || 0, 0) })}</p>` : "") +
+      (v.state === "installing" ? `<p role="status"><span class="spin"></span>${te("up.installing")}</p>` : "") +
+      (v.state === "failed" ? `<p class="err">${te("up.failed", { error: v.error || "" })}</p>` : "");
+    const go = $("#up-go", el); if (go) go.disabled = busy;
+  }
+  el._draw = draw; draw();
+}
+
 function aboutDialog() {
   dialog({ title: t("menu.about"), width: 420, key: "about",
     body: `<div style="display:flex;gap:14px;align-items:center">${I.logo.replace(/width="20" height="20"/, 'width="56" height="56"')}<div><div style="font-size:18px;font-weight:600">${te("app.title")}</div><div class="hint" style="margin:2px 0 0">${te("about.version", { version: APP_VERSION })}</div></div></div>
@@ -4234,7 +4324,7 @@ async function processPrompts(prompts) {
   else if (p.kind === "pair") await pairDialog(p); // a browser extension asks to connect (extlink.js)
   else if (p.kind === "phone") await phoneDialog(p); // a phone asks to connect (phoneui.js)
   else await new Promise(res => fileInfoDialog(p.url, p.headers || {}, p.name || "", res, p.title || "", { dir: p.dir, queueId: p.queueId,
-    method: p.method, body: p.body, known: p.known, private: p.private, taken: p.taken, promptId: p.id }));
+    method: p.method, body: p.body, known: p.known, private: p.private, taken: p.taken, promptId: p.id, split: p.split }));
   S.promptBusy = false;
 }
 
@@ -4307,6 +4397,7 @@ function connect() {
     S.cap = s.cap; S.os = s.os;
     S.early = new Map((s.early || []).map(d => [d.id, d]));
     S.plan = s.plan; S.polite = s.polite; S.net = s.net || null; S.power = s.power; S.profile = s.profile; S.quota = s.quota;
+    S.update = s.update || null; if (S.update && S.update.state === "installing") S.updating = true;
     if (s.alert && !S.alertShown) { S.alertShown = true; toast(s.alert, { ms: 12000, kind: "error" }); api("alert/seen", {}).catch(() => {}); }
     if (S.filter.startsWith("q:") && !S.queues.some(q => "q:" + q.id === S.filter)) S.filter = "all";
     for (const id of [...S.selected]) if (!S.byId.has(id)) S.selected.delete(id);
@@ -4347,13 +4438,17 @@ function connect() {
       else if (n.kind === "quotaStop") { quotaDialog(); const m = t("n.quotaUsed"); note(m, "warn"); say(m, true); }
       else if (n.kind === "linkRenewed" || n.kind === "checkOk" || n.kind === "phonePaired") toast(n.text, 4000);
       else if (n.kind === "checkBad" || n.kind === "checkErr") toast(n.text, { ms: 8000, kind: "error" });
+      else if (n.kind === "unpacked") toast(n.text, { ms: 6000, action: { label: t("ctx.openUnpacked"), fn: () => api("action", { action: "openUnpacked", ids: [n.id] }) } });
+      else if (n.kind === "unpackErr") toast(n.text, { ms: 8000, kind: "error" });
+      else if (n.kind === "update") toast(n.text, { ms: 10000, action: { label: t("btn.show"), fn: () => updateDialog() } });
+      else if (n.kind === "updateErr") { S.updating = false; toast(n.text, { ms: 10000, kind: "error" }); }
     }
     S.lastSeq = Math.max(S.lastSeq, maxSeq);
     processPrompts(s.prompts);
   };
   es.onerror = () => {
     clearTimeout(lostTimer);
-    lostTimer = setTimeout(() => { if (!$("#lost")) toast(t("n.lost"), { id: "lost", sticky: true, kind: "error" }); }, 2500);
+    lostTimer = setTimeout(() => { if (!$("#lost")) toast(t(S.updating ? "up.restarting" : "n.lost"), { id: "lost", sticky: true, kind: S.updating ? "" : "error" }); }, 2500);
   };
 }
 
@@ -4508,10 +4603,11 @@ buildMenus(); buildToolbar(); buildHead();
 // the status bar's buttons (it's redrawn often, so one listener for all)
 $("#statusbar").addEventListener("click", e => {
   const b = e.target.closest("[data-sb]");
-  if (b && b.dataset.sb === "profile") profileMenu(b); else if (b && b.dataset.sb === "quota") quotaDialog();
+  if (b && b.dataset.sb === "profile") profileMenu(b); else if (b && b.dataset.sb === "quota") quotaDialog(); else if (b && b.dataset.sb === "update") updateDialog();
 });
 api("settings").then(s => {
   S.settings = s;
+  if (!(s.updates && s.updates.check)) askUpdates();
   let theme = ""; try { theme = localStorage.getItem("zl.theme") || ""; } catch {}
   if ((s.theme || "") !== theme) { s.theme = theme; api("theme", { theme }).catch(() => {}); } // (a theme chosen before the app kept it)
 });
