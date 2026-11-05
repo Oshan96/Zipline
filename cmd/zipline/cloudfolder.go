@@ -14,9 +14,9 @@ import (
 	"zipline/internal/filename"
 )
 
-// Shared folders (Google Drive, OneDrive, Yandex Disk, pCloud, MEGA): the Add dialog lists the files in
-// one like a metalink's, to download all of them (keeping the folders, inside a folder named after
-// the shared one) or just one. Each file becomes a download of its own, with a link that resolves to
+// Shared folders (Google Drive, OneDrive, Yandex Disk, pCloud, MEGA, Pixeldrain, Catbox albums): the
+// Add dialog lists the files in one like a metalink's, to download all of them (keeping the folders,
+// inside a folder named after the shared one) or just one. Each file becomes a download of its own, with a link that resolves to
 // that file, so it resumes like any share link.
 
 type cloudFile struct {
@@ -58,6 +58,10 @@ func listCloudFolder(ctx context.Context, raw string) (*cloudFolder, error) {
 		return pcloudFolder(ctx, raw)
 	case "MEGA":
 		return megaFolder(ctx, raw)
+	case "Pixeldrain":
+		return pixeldrainFolder(ctx, raw)
+	case "Catbox":
+		return catboxFolder(ctx, raw)
 	}
 	return nil, errNotFolder
 }

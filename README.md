@@ -64,7 +64,7 @@ Magnet links and `.torrent` files with the DHT, encryption, uTP, router port map
 
 ### ☁️ Cloud share links
 
-Google Drive, Dropbox, OneDrive, MEGA, Yandex Disk, pCloud, MediaFire and WeTransfer links download the file itself, shared folders included.
+Google Drive, Dropbox, OneDrive, MEGA, Yandex Disk, pCloud, MediaFire, WeTransfer and Pixeldrain links download the file itself, shared folders and Catbox albums included.
 
 </td>
 <td valign="top">

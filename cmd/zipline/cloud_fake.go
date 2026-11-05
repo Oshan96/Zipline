@@ -25,4 +25,6 @@ func init() {
 	mediafireWeb = base + "/mediafire"
 	mfDirectRe = regexp.MustCompile("^" + regexp.QuoteMeta(base) + "/")
 	wetransferWeb = base + "/wetransfer"
+	pixeldrainAPI = base + "/pixeldrain"
+	catboxWeb, catboxFiles = base+"/catbox", []string{base + "/catbox-files"}
 }
